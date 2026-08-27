@@ -1,0 +1,42 @@
+# Python
+sdk/venv/
+cloud/venv/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+
+# Environment — never commit
+cloud/.env
+.env
+**/.env
+
+# Database
+*.db
+*.sqlite
+
+# ML model cache
+*.onnx
+*.pt
+*.bin
+*.h5
+.cache/
+huggingface/
+
+# Temp files
+temp_*
+*.wav
+*.mp4
+*.tmp
+
+# Node (for SafeChat demo)
+node_modules/
+dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp

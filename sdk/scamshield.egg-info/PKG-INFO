@@ -1,0 +1,19 @@
+Metadata-Version: 2.4
+Name: scamshield
+Version: 1.0.0
+Summary: Python SDK for ScamShield multimodal scam and deepfake detection system
+Author: ScamShield Team
+Requires-Dist: pydantic
+Requires-Dist: httpx
+Requires-Dist: numpy
+Requires-Dist: librosa
+Requires-Dist: soundfile
+Requires-Dist: faster-whisper
+Requires-Dist: sentence-transformers
+Requires-Dist: opencv-python
+Requires-Dist: Pillow
+Requires-Dist: scipy
+Requires-Dist: pytesseract
+Dynamic: author
+Dynamic: requires-dist
+Dynamic: summary

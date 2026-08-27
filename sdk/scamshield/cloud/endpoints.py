@@ -1,0 +1,11 @@
+class CloudEndpoints:
+    DETECT_TEXT = "/v1/detect/text"
+    DETECT_AUDIO = "/v1/detect/audio"
+    DETECT_IMAGE = "/v1/detect/image"
+    DETECT_VIDEO = "/v1/detect/video"
+    STREAM_AUDIO = "/v1/stream/audio"
+    STREAM_VIDEO = "/v1/stream/video"
+    INCIDENTS = "/v1/incidents/"
+    INCIDENTS_STATS = "/v1/incidents/stats"
+    INCIDENTS_FEEDBACK = "/v1/incidents/feedback"
+    HEALTH = "/health"

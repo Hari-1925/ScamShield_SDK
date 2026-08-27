@@ -1,0 +1,151 @@
+name: scamshield_detection_pipeline
+version: "1.0"
+runtime: python
+description: >
+  ScamShield multimodal scam and deepfake
+  detection pipeline. Receives feature vectors
+  from local SDK gate. Routes to appropriate
+  Lyzr agent. Enriches with Tavily threat intel.
+  Fuses with Gemini for final explanation.
+
+inputs:
+  modality:
+    type: string
+    enum: [text, audio, image, video]
+  vectors:
+    type: object
+    description: Feature vectors from local gate
+  gate_score:
+    type: float
+    description: Local gate confidence score
+
+steps:
+  - id: route_modality
+    type: conditional
+    conditions:
+      - if: "inputs.modality == 'text'"
+        goto: text_lyzr_agent
+      - if: "inputs.modality == 'audio'"
+        goto: audio_lyzr_agent
+      - if: "inputs.modality == 'image'"
+        goto: image_lyzr_agent
+      - if: "inputs.modality == 'video'"
+        goto: video_lyzr_agent
+
+  - id: text_lyzr_agent
+    type: lyzr_agent
+    config:
+      task: >
+        Analyse this text embedding vector and
+        metadata for scam patterns. The local gate
+        scored this at {inputs.gate_score}.
+        Keyword hits: {inputs.vectors.keyword_hits}
+        URL flags: {inputs.vectors.url_flags}
+        Scam category hint: {inputs.vectors.scam_category}
+        Return confidence_score 0.0 to 1.0
+        and scam_type from: upi_fraud,
+        bank_phishing, otp_scam, lottery_prize,
+        job_scam, romance_scam, investment_scam,
+        deepfake_impersonation, or null.
+
+  - id: audio_lyzr_agent
+    type: lyzr_agent
+    config:
+      task: >
+        Analyse these audio features for deepfake
+        and scam patterns. Local gate score:
+        {inputs.gate_score}.
+        MFCC variance: {inputs.vectors.mfcc_std}
+        ZCR: {inputs.vectors.zcr}
+        Pitch std: {inputs.vectors.pitch_std}
+        Transcription: {inputs.vectors.transcription}
+        Determine if this is AI-generated voice
+        and if the content is a scam attempt.
+
+  - id: image_lyzr_agent
+    type: lyzr_agent
+    config:
+      task: >
+        Analyse these image forensic features.
+        Local gate score: {inputs.gate_score}.
+        ELA mean: {inputs.vectors.ela_mean}
+        ELA std: {inputs.vectors.ela_std}
+        Noise std: {inputs.vectors.noise_std}
+        Face detected: {inputs.vectors.face_detected}
+        OCR text: {inputs.vectors.ocr_text}
+        Determine if image is manipulated or
+        AI-generated and if OCR text is a scam.
+
+  - id: video_lyzr_agent
+    type: lyzr_agent
+    config:
+      task: >
+        Analyse these video forensic features.
+        Frame scores over time: {inputs.vectors.frame_scores}
+        Average frame score: {inputs.vectors.avg_frame_score}
+        Audio deepfake score: {inputs.vectors.audio_score}
+        Transcription: {inputs.vectors.transcription}
+        Look for temporal inconsistencies in
+        frame scores and combine with audio signals.
+
+  - id: tavily_threat_lookup
+    type: http
+    depends_on:
+      - text_lyzr_agent
+      - audio_lyzr_agent
+      - image_lyzr_agent
+      - video_lyzr_agent
+    condition: >
+      len(inputs.vectors.get('extracted_urls',[])) > 0
+      OR len(inputs.vectors.get('url_flags',[])) > 0
+    config:
+      url: https://api.tavily.com/search
+      method: POST
+      headers:
+        Content-Type: application/json
+      body:
+        api_key: "${TAVILY_API_KEY}"
+        query: >
+          scam phishing fraud
+          {inputs.vectors.get('extracted_urls',[''])[0]}
+        search_depth: basic
+        max_results: 5
+
+  - id: gemini_fusion
+    type: http
+    depends_on: [tavily_threat_lookup]
+    config:
+      url: >
+        https://generativelanguage.googleapis.com/
+        v1/models/gemini-1.5-flash:generateContent
+        ?key=${GEMINI_API_KEY}
+      method: POST
+      body:
+        contents:
+          - parts:
+              - text: >
+                  You are a scam detection assistant.
+
+                  Modality: {inputs.modality}
+                  Gate score: {inputs.gate_score}
+                  Agent score: {steps.*.confidence_score}
+                  Scam type: {steps.*.scam_type}
+                  Tavily hits: {steps.tavily.results}
+
+                  Respond in JSON only:
+                  {
+                    "explanation": "max 2 sentences simple English for user",
+                    "recommendation": "one specific action for the user"
+                  }
+
+outputs:
+  confidence_score:
+    from: steps.*.confidence_score
+  scam_type:
+    from: steps.*.scam_type
+  explanation:
+    from: steps.gemini_fusion.explanation
+  recommendation:
+    from: steps.gemini_fusion.recommendation
+  tavily_hits:
+    from: steps.tavily_threat_lookup.result_count

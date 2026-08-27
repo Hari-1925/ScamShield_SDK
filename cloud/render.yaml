@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: scamshield-api
+    runtime: python
+    region: singapore
+    buildCommand: "pip install -r cloud/requirements.txt"
+    startCommand: "cd cloud && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: scamshield-db
+          property: connectionString
+      - key: SWYTCHCODE_API_KEY
+        sync: false
+      - key: LYZR_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: N8N_API_KEY
+        sync: false
+      - key: N8N_WEBHOOK_BASE_URL
+        sync: false
+
+databases:
+  - name: scamshield-db
+    region: singapore
+    plan: free

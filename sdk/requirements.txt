@@ -1,0 +1,11 @@
+pydantic
+httpx
+numpy
+librosa
+soundfile
+faster-whisper
+sentence-transformers
+opencv-python
+Pillow
+scipy
+pytesseract
