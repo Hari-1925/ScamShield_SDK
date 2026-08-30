@@ -65,11 +65,20 @@ async def process_detection(modality: str, req: BaseModel, request: Request, bac
     url_coro = app.state.tavily.check_urls(extracted_urls)
     tavily_url_task = asyncio.create_task(url_coro)
     
-    # 2. Keyword Search (Safe, no PII)
+    # 2. OSINT / Threat Intel Search (Safe, no PII)
     tavily_intel_task = None
+    query_parts = []
     if keyword_hits:
-        # Join keywords into a generic query (e.g. "FedEx customs arrest")
-        query = " ".join(keyword_hits)
+        query_parts.extend(keyword_hits)
+    
+    # Forward the privacy-scrubbed transcription to Tavily for parallel verification
+    scrubbed_text = req_dict.get("scrubbed_transcription", "")
+    if scrubbed_text:
+        query_parts.append(scrubbed_text)
+
+    if query_parts:
+        # Join into a semantic search query
+        query = " ".join(query_parts)[:500] # Cap length to avoid API limits
         intel_coro = app.state.tavily.search_scam_intel(query)
         tavily_intel_task = asyncio.create_task(intel_coro)
         
@@ -90,15 +99,33 @@ async def process_detection(modality: str, req: BaseModel, request: Request, bac
             "evidence": tavily_url_res.get("evidence", []) + tavily_intel_res.get("evidence", [])
         }
         
-        # Trigger Lyzr Multi-Agent Orchestrator!
-        cfo_res = await app.state.lyzr.orchestrate_multimodal_agents(
+        # Trigger Lyzr Multi-Agent Orchestrator
+        lyzr_task = asyncio.create_task(app.state.lyzr.orchestrate_multimodal_agents(
             modality=modality,
             req_dict=req_dict,
             threat_intel=tavily_res
-        )
-        cloud_score = cfo_res.get("confidence_score", cloud_score)
-        scam_type = cfo_res.get("scam_type", scam_type)
-        explanation = cfo_res.get("explanation", "")
+        ))
+        
+        # Trigger Gemini Orchestrator in parallel to act as a second opinion
+        gemini_task = asyncio.create_task(app.state.gemini.orchestrate_multimodal_agents(
+            modality=modality,
+            req_dict=req_dict,
+            threat_intel=tavily_res
+        ))
+        
+        cfo_res, gemini_res = await asyncio.gather(lyzr_task, gemini_task)
+        
+        # Combine Gemini and Lyzr for a better probability
+        lyzr_score = cfo_res.get("confidence_score", cloud_score)
+        gemini_score = gemini_res.get("confidence_score", cloud_score)
+        cloud_score = (lyzr_score + gemini_score) / 2.0
+        
+        scam_type = cfo_res.get("scam_type", scam_type) or gemini_res.get("scam_type")
+        
+        # Combine explanations
+        lyzr_exp = cfo_res.get("explanation", "")
+        gemini_exp = gemini_res.get("explanation", "")
+        explanation = f"Lyzr: {lyzr_exp} | Gemini: {gemini_exp}" if gemini_exp else lyzr_exp
         recommendation = cfo_res.get("recommendation", "")
 
     if 'tavily_res' not in locals():
