@@ -5,3 +5,4 @@ httpx
 google-genai
 pydantic
 tavily-python
+python-dotenv
