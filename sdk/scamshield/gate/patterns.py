@@ -101,6 +101,9 @@ HIGH_RISK_KEYWORDS = [
     "double your money", "guaranteed profit",
     "risk free", "zero risk", "100 percent return",
     "blocked in 24 hours", "suspended account",
+    "arrest", "arrested", "police", "jail", "fine", 
+    "cbi", "upi", "rupees", "bank account", "suspicious activity",
+    "different number", "send me", "lost my phone", "new number", "emergency"
 ]
 
 SUSPICIOUS_URL_PATTERNS = [

@@ -15,7 +15,8 @@ setup(
         "opencv-python",
         "Pillow",
         "scipy",
-        "pytesseract"
+        "pytesseract",
+        "scikit-learn"
     ],
     author="ScamShield Team",
     description="Python SDK for ScamShield multimodal scam and deepfake detection system",

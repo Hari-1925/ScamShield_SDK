@@ -34,7 +34,10 @@ class VideoGate:
                 if not ret: break
                 if frame_count % interval == 0:
                     _, buf = cv2.imencode(".jpg", frame)
-                    result = self.image_gate.run(buf.tobytes())
+                    # Only run OCR on the VERY FIRST extracted frame to save massive time
+                    do_skip_ocr = len(frame_scores) > 0
+                    result = self.image_gate.run(buf.tobytes(), skip_ocr=do_skip_ocr)
+                    last_frame_result = result
                     frame_scores.append(result.gate_score)
                 frame_count += 1
             cap.release()
@@ -58,12 +61,22 @@ class VideoGate:
                     audio_result = self.audio_gate.run(audio_bytes_extracted)
 
             # Step 4 - Fuse
+            # Escalate if EITHER the video frames OR the audio track is malicious
             avg_frame = np.mean(frame_scores) if frame_scores else 0.0
             audio_score = audio_result.gate_score if audio_result else 0.0
-            gate_score = (avg_frame * 0.50 + audio_score * 0.50)
+            gate_score = max(avg_frame, audio_score)
+
+            # Extract semantic tags
+            visual_tags = []
+            if len(frame_scores) > 0 and 'last_frame_result' in locals():
+                visual_tags = last_frame_result.vectors.get("visual_tags", [])
+                
+            acoustic_tags = []
+            if audio_result:
+                acoustic_tags = audio_result.vectors.get("acoustic_tags", [])
 
             return GateResult(
-                passed_gate=gate_score >= 0.35,
+                passed_gate=gate_score >= 0.30,
                 gate_score=float(gate_score),
                 gate_reason="Video frame and audio analysis",
                 vectors={
@@ -72,7 +85,11 @@ class VideoGate:
                     "frames_analysed": len(frame_scores),
                     "audio_score": float(audio_score),
                     "audio_vectors": audio_result.vectors if audio_result else {},
-                    "transcription": audio_result.vectors.get("transcription", "") if audio_result else ""
+                    "transcription": audio_result.vectors.get("transcription", "") if audio_result else "",
+                    "scrubbed_transcription": audio_result.vectors.get("scrubbed_transcription", "") if audio_result else "",
+                    "keyword_hits": audio_result.vectors.get("keyword_hits", []) if audio_result else [],
+                    "acoustic_tags": acoustic_tags,
+                    "visual_tags": visual_tags
                 },
                 modality="video"
             )

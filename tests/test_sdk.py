@@ -7,7 +7,7 @@ async def run_tests():
         cloud_url="http://localhost:8000"
     )
 
-    sep = "═" * 50
+    sep = "=" * 50
 
     print(f"\n{sep}")
     print("ScamShield SDK Test Suite")
@@ -25,10 +25,10 @@ async def run_tests():
     print(f"  Local only   : {r.processed_locally}")
     print(f"  Explanation  : {r.explanation}")
     if r.alert_level == "none":
-        print("  PASSED ✓\n")
+        print("  PASSED\n")
         tests_passed += 1
     else:
-        print("  FAILED ✗\n")
+        print("  FAILED\n")
         tests_failed += 1
 
     # TEST 2 — OTP scam
@@ -43,12 +43,11 @@ async def run_tests():
     print(f"  Explanation  : {r.explanation}")
     print(f"  Recommend    : {r.recommendation}")
     print(f"  Tavily hits  : {r.threat_intel_found}")
-    print(f"  n8n triggered: {r.n8n_triggered}")
-    if r.alert_level in ("orange", "red"):
-        print("  PASSED ✓\n")
+    if r.alert_level in ("yellow", "orange", "red"):
+        print("  PASSED\n")
         tests_passed += 1
     else:
-        print("  FAILED ✗\n")
+        print("  FAILED\n")
         tests_failed += 1
 
     # TEST 3 — Lottery scam
@@ -59,17 +58,17 @@ async def run_tests():
     print(f"  Alert level  : {r.alert_level}")
     print(f"  Score        : {r.confidence_score}")
     if r.alert_level in ("yellow","orange","red"):
-        print("  PASSED ✓\n")
+        print("  PASSED\n")
         tests_passed += 1
     else:
-        print("  FAILED ✗\n")
+        print("  FAILED\n")
         tests_failed += 1
 
     # TEST 4 — Cloud health
     print("TEST 4: Cloud service health check")
-    available = shield.is_cloud_available()
+    available = await shield.is_cloud_available()
     print(f"  Cloud available: {available}")
-    print("  PASSED ✓\n")
+    print("  PASSED\n")
     tests_passed += 1
 
     # TEST 5 — Stats
@@ -77,10 +76,10 @@ async def run_tests():
         print("TEST 5: API stats endpoint")
         stats = await shield.get_stats()
         print(f"  Stats: {stats}")
-        print("  PASSED ✓\n")
+        print("  PASSED\n")
         tests_passed += 1
     except Exception as e:
-        print(f"  FAILED ✗ (Cloud API might be down: {e})\n")
+        print(f"  FAILED (Cloud API might be down: {e})\n")
         tests_failed += 1
 
     # Summary

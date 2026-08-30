@@ -20,7 +20,7 @@ async def test_cloud():
             print(f"  Status: {data.get('status')}")
             services = data.get("services", {})
             for svc, ok in services.items():
-                print(f"  {svc}: {'✓' if ok else '✗'}")
+                print(f"  {svc}: {'OK' if ok else 'FAIL'}")
             print()
         except Exception as e:
             print(f"  FAILED: Could not connect to {BASE}/health. Is the server running? {e}\n")
@@ -47,7 +47,7 @@ async def test_cloud():
                 print(f"  Score: {d.get('confidence_score')}")
                 print(f"  Swytchcode used: "
                       f"{d.get('swytchcode_used', False)}")
-                print("  PASSED ✓\n")
+                print("  PASSED\n")
             else:
                 print(f"  FAILED: {r.text}\n")
         except Exception as e:
@@ -61,8 +61,42 @@ async def test_cloud():
             )
             print(f"  Status: {r.status_code}")
             if r.status_code == 200:
-                print(f"  Data: {r.json()}")
-                print("  PASSED ✓\n")
+                print("  PASSED\n")
+            else:
+                print(f"  FAILED: {r.text}\n")
+        except Exception as e:
+            print(f"  FAILED: {e}\n")
+            
+        print("TEST 4: Video detection endpoint with Semantic Forensic Tags (Deepfake attack)")
+        try:
+            r = await client.post(
+                f"{BASE}/v1/detect/video",
+                json={
+                    "frame_scores": [0.99, 0.98],
+                    "avg_frame_score": 0.985,
+                    "frames_analysed": 2,
+                    "audio_score": 0.9,
+                    "audio_vectors": {},
+                    "acoustic_tags": ["Pitch variance: Monotone (Synthetic)", "Background noise: 0% (Studio condition)", "Breathing detected: False"],
+                    "visual_tags": ["Blink rate: 0 blinks in 15 seconds", "Lighting consistency: Mismatched jawline shadows", "Lip-sync: 45% (Desynchronized)"],
+                    "transcription": "Your package is seized by customs pay 5000 rupees now",
+                    "scrubbed_transcription": "Your [PACKAGE] is seized by customs pay [AMOUNT] now",
+                    "keyword_hits": ["customs", "package", "urgent"],
+                    "gate_score": 0.85,
+                    "session_id": "test_cloud_002"
+                },
+                headers={"Authorization": f"Bearer {os.getenv('API_KEY','scamshield-dev-key-2026')}"},
+                timeout=45.0
+            )
+            print(f"  Status code: {r.status_code}")
+            if r.status_code == 200:
+                d = r.json()
+                print(f"  Alert Level: {d.get('alert_level')}")
+                print(f"  Final Score: {d.get('confidence_score')}")
+                print(f"  Scam Type: {d.get('scam_type')}")
+                print(f"  Explanation: {d.get('explanation')}")
+                print(f"  Recommendation: {d.get('recommendation')}")
+                print("  PASSED\n")
             else:
                 print(f"  FAILED: {r.text}\n")
         except Exception as e:

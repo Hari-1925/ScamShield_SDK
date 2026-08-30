@@ -9,3 +9,4 @@ opencv-python
 Pillow
 scipy
 pytesseract
+scikit-learn

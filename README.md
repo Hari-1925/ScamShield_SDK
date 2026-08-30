@@ -22,7 +22,6 @@ Raw content never leaves the device.
 | Render      | Cloud API hosting + PostgreSQL|
 | Swytchcode  | AI pipeline orchestration     |
 | Tavily      | Live threat intelligence      |
-| n8n Cloud   | Alert and report automation   |
 | Lyzr AI     | Deep analysis agents          |
 | Gemini      | Fusion and explanation        |
 
@@ -41,21 +40,14 @@ uvicorn app.main:app --reload --port 8000
 cd sdk
 pip install -e .
 
-### 3. n8n Workflows
-
-Import cloud/n8n/workflows.json into n8n Cloud.
-Set environment variables in n8n:
-  SHIELDSENSE_API_URL = your Render URL
-  ADMIN_WEBHOOK_URL = your notification endpoint
-
-### 4. Swytchcode Pipeline
+### 3. Swytchcode Pipeline
 
 Install Swytchcode CLI:
   npm install -g @swytchcode/cli
   swytchcode login
   swytchcode deploy cloud/swytchcode/pipeline.yaml
 
-### 5. Run Tests
+### 4. Run Tests
 
 # With cloud API running:
 python tests/test_sdk.py

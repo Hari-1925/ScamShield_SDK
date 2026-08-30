@@ -22,7 +22,6 @@ class Incident(Base):
     agent_scores = Column(Text, nullable=True) # JSON string
     threat_intel = Column(Text, nullable=True) # JSON string
     swytchcode_used = Column(Boolean, default=True)
-    n8n_triggered = Column(Boolean, default=False)
     user_feedback = Column(String, nullable=True)
     session_id = Column(String, nullable=True)
     processed_locally = Column(Boolean, default=False)
@@ -38,4 +37,3 @@ class StreamSession(Base):
     peak_score = Column(Float, default=0.0)
     final_alert_level = Column(String, default="none")
     session_id = Column(String, nullable=True)
-    n8n_triggered = Column(Boolean, default=False)

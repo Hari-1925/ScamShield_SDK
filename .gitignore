@@ -1,11 +1,11 @@
-# Python
+﻿# Python
 sdk/venv/
 cloud/venv/
 **/__pycache__/
 **/*.pyc
 **/*.pyo
 
-# Environment — never commit
+# Environment â€” never commit
 cloud/.env
 .env
 **/.env
@@ -40,3 +40,7 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+
+
+models/

@@ -25,9 +25,8 @@ class DetectionResult(BaseModel):
     gate_score: float
     cloud_score: Optional[float]
     processed_locally: bool
-    threat_intel_found: bool
-    modality: str
-    n8n_triggered: bool = False
+    threat_intel_found: bool = False
+    modality: str = "text"
 
     @property
     def should_alert(self) -> bool:

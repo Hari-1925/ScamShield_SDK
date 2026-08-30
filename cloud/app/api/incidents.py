@@ -19,16 +19,23 @@ async def get_stats():
 async def get_incident(incident_id: str):
     return {"incident_id": incident_id, "status": "not_found"}
 
-@router.post("/incidents/feedback")
-async def submit_feedback(req: FeedbackRequest, request: Request, background_tasks: BackgroundTasks):
-    background_tasks.add_task(
-        request.app.state.n8n.trigger_false_positive_workflow,
-        req.incident_id,
-        req.feedback
-    )
-    return {"status": "accepted"}
+@router.post("/{incident_id}/feedback")
+async def report_feedback(
+    incident_id: str,
+    feedback: FeedbackRequest,
+    background_tasks: BackgroundTasks
+):
+    # Here you would typically update the DB flag.
+    # For now we'll just acknowledge it.
+    
+    if feedback.feedback_type == "false_positive":
+        # Alert systems or human review queues can be triggered here
+        pass
 
-@router.get("/daily-report")
-async def trigger_daily_report(request: Request, background_tasks: BackgroundTasks):
-    background_tasks.add_task(request.app.state.n8n.trigger_daily_report_workflow)
-    return {"status": "scheduled"}
+    return {"status": "accepted", "incident_id": incident_id}
+
+@router.post("/generate-report")
+async def trigger_daily_report(background_tasks: BackgroundTasks):
+    # Typically this would generate a PDF or stats aggregate
+    # and send an email or trigger an external workflow.
+    return {"status": "report_generation_started"}

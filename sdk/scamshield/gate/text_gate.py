@@ -7,7 +7,8 @@ from scamshield.gate.patterns import SCAM_PATTERNS, HIGH_RISK_KEYWORDS, SUSPICIO
 class TextGate:
     MODEL = "all-MiniLM-L6-v2"
 
-    def __init__(self):
+    def __init__(self, model_dir: str = None):
+        self.model_dir = model_dir
         self.model = None
         self.pattern_matrix = None
         self.pattern_labels = []
@@ -15,11 +16,19 @@ class TextGate:
     def load(self):
         try:
             from sentence_transformers import SentenceTransformer
-        except ImportError:
+        except ImportError as e:
+            print(f"ImportError loading sentence-transformers: {e}")
             print("Please install sentence-transformers: pip install sentence-transformers scikit-learn")
             return
 
-        self.model = SentenceTransformer(self.MODEL)
+        model_name_or_path = self.MODEL
+        import os
+        if self.model_dir:
+            local_path = os.path.join(self.model_dir, "all-MiniLM-L6-v2")
+            if os.path.exists(local_path):
+                model_name_or_path = local_path
+                
+        self.model = SentenceTransformer(model_name_or_path)
         
         # Pre-compute embeddings
         all_patterns = []
@@ -34,6 +43,13 @@ class TextGate:
     def run(self, text: str) -> GateResult:
         if self.model is None or self.pattern_matrix is None:
             raise RuntimeError("TextGate not loaded. Call load() first.")
+
+        if not text.strip():
+            return GateResult(
+                passed_gate=False, gate_score=0.0, gate_reason="Empty text",
+                vectors={"embedding": [], "keyword_hits": [], "url_flags": [], "extracted_urls": [], "scam_category": "none"},
+                modality="text"
+            )
 
         text_lower = text.lower()
         
@@ -59,18 +75,28 @@ class TextGate:
         top_score = float(similarities[top_idx])
         top_category = self.pattern_labels[top_idx]
         
-        semantic_score = max(0.0, (top_score - 0.35) / 0.65)
+        semantic_score = max(0.0, (top_score - 0.25) / 0.75)
 
         # Step 4 - Fuse
-        gate_score = (semantic_score * 0.60) + (keyword_score * 0.25) + (url_score * 0.15)
+        # Use a capped sum instead of weighted average so that strong semantic 
+        # matches don't get suppressed if there are no URLs (like in audio/images)
+        gate_score = min(semantic_score + keyword_score + url_score, 1.0)
         
         # Step 5 - Decision
-        threshold = 0.35
+        threshold = 0.30
         passed = gate_score >= threshold
         
         # Determine highest trigger
-        scores = {"semantic": semantic_score * 0.60, "keyword": keyword_score * 0.25, "url": url_score * 0.15}
+        scores = {"semantic": semantic_score, "keyword": keyword_score, "url": url_score}
         gate_reason = max(scores, key=scores.get)
+        
+        # Privacy Layer: If this is flagged as a scam (passed == True), we scrub the raw text
+        # before returning it in the vectors so the Cloud never receives PII.
+        from scamshield.privacy.scrubber import PIIScrubber
+        scrubber = PIIScrubber()
+        
+        # We save the scrubbed text in the vectors payload so the API can use it
+        scrubbed_text = scrubber.scrub(text) if passed else ""
 
         return GateResult(
             passed_gate=passed,
@@ -81,7 +107,8 @@ class TextGate:
                 "keyword_hits": matched_keywords,
                 "url_flags": matched_url_patterns,
                 "extracted_urls": extracted_urls,
-                "scam_category": top_category
+                "scam_category": top_category,
+                "scrubbed_transcription": scrubbed_text
             },
             modality="text"
         )

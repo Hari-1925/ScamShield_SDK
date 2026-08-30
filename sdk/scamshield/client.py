@@ -17,17 +17,19 @@ class ScamShield:
         api_key: str,
         cloud_url: str = "https://scamshield.onrender.com",
         gate_threshold: float = 0.35,
-        timeout: int = 10
+        timeout: int = 10,
+        model_dir: str = None
     ):
         self.api_key = api_key
         self.cloud_url = cloud_url
         self.gate_threshold = gate_threshold
         self.timeout = timeout
+        self.model_dir = model_dir
         self.cloud = CloudClient(api_key, cloud_url, timeout)
 
         # Initialize local gates
-        self.text_gate = TextGate()
-        self.audio_gate = AudioGate(self.text_gate)
+        self.text_gate = TextGate(model_dir=self.model_dir)
+        self.audio_gate = AudioGate(self.text_gate, model_dir=self.model_dir)
         self.image_gate = ImageGate(self.text_gate)
         self.video_gate = VideoGate(self.image_gate, self.audio_gate)
 
@@ -142,14 +144,26 @@ class ScamShield:
         return await self.cloud.detect(CloudEndpoints.DETECT_VIDEO, gate_res.vectors, gate_res.gate_score, session_id)
 
     async def start_audio_stream(self) -> AudioStreamSession:
+        self._ensure_models_loaded()
         from scamshield.streaming.audio_stream import AudioStreamClient
-        client = AudioStreamClient(f"{self.cloud_url.replace('http', 'ws')}{CloudEndpoints.STREAM_AUDIO}", self.api_key)
+        client = AudioStreamClient(
+            ws_url=f"{self.cloud_url.replace('http', 'ws')}{CloudEndpoints.STREAM_AUDIO}",
+            api_key=self.api_key,
+            audio_gate=self.audio_gate,
+            cloud_client=self.cloud
+        )
         await client.connect()
         return client
 
     async def start_video_stream(self) -> VideoStreamSession:
+        self._ensure_models_loaded()
         from scamshield.streaming.video_stream import VideoStreamClient
-        client = VideoStreamClient(f"{self.cloud_url.replace('http', 'ws')}{CloudEndpoints.STREAM_VIDEO}", self.api_key)
+        client = VideoStreamClient(
+            ws_url=f"{self.cloud_url.replace('http', 'ws')}{CloudEndpoints.STREAM_VIDEO}",
+            api_key=self.api_key,
+            video_gate=self.video_gate,
+            cloud_client=self.cloud
+        )
         await client.connect()
         return client
 
@@ -159,15 +173,11 @@ class ScamShield:
     async def confirm_threat(self, incident_id: str) -> bool:
         return await self.cloud.report_feedback(incident_id, "confirmed_threat")
 
-    def is_cloud_available(self) -> bool:
-        # Check health synchronously for simplicity in this helper
+    async def is_cloud_available(self) -> bool:
         try:
-            return asyncio.get_event_loop().run_until_complete(self.cloud.check_health())
+            return await self.cloud.check_health()
         except Exception:
-            try:
-                return asyncio.run(self.cloud.check_health())
-            except Exception:
-                return False
+            return False
         
     async def get_stats(self) -> dict:
         return await self.cloud.get_stats()
