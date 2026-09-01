@@ -48,6 +48,7 @@ async def health_check():
 class LocalTextRequest(BaseModel):
     text: str
     contact_id: str = "unknown"
+    sender_id: str = "unknown"
 
 class CloudScanRequest(BaseModel):
     modality: str
@@ -64,9 +65,12 @@ async def scan_local_text(msg: LocalTextRequest):
         # For the demo, we assume incoming random chats are NOT saved contacts.
         # However, if the sender is a verified enterprise (e.g. AD-SBIBNK), we grant them high trust.
         contact_upper = msg.contact_id.upper()
-        is_verified_bank = "BANK" in contact_upper or "SBI" in contact_upper or "HDFC" in contact_upper
+        sender_upper = msg.sender_id.upper()
         
-        is_saved = is_verified_bank 
+        is_verified_bank = "BANK" in contact_upper or "SBI" in contact_upper or "HDFC" in contact_upper or "BANK" in sender_upper
+        is_family = "DAD" in contact_upper or "MOM" in contact_upper or "FRIEND" in contact_upper or "DAD" in sender_upper or "MOM" in sender_upper
+        
+        is_saved = is_verified_bank or is_family 
         
         gate_res = shield.text_gate.run(msg.text, contact_id=msg.contact_id, is_saved_contact=is_saved)
         return {

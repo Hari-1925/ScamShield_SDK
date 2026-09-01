@@ -296,18 +296,31 @@ function App() {
   };
 
   const sendMessage = async () => {
-    if (!messageInput.trim()) return;
-    if (aiStatus !== 'ready') {
-      alert("AI Models are still loading. Please wait.");
-      return;
-    }
+      if (!messageInput.trim()) return;
+      
+      const currentText = messageInput;
+      setMessageInput('');
 
-    const currentText = messageInput;
-    setMessageInput('');
-    const msgId = generateId();
+      // Secret cheat-code to change username
+      if (currentText.startsWith('/name ')) {
+          const newName = currentText.replace('/name ', '').trim();
+          setName(newName);
+          return;
+      }
+
+      if (aiStatus !== 'ready') {
+        alert("AI Models are still loading. Please wait.");
+        return;
+      }
+
+      const msgId = Date.now().toString();
 
     try {
-      const res = await axios.post(`${LOCAL_AGENT_URL}/scan_local_text`, { text: currentText, contact_id: activeChat });
+      const res = await axios.post(`${LOCAL_AGENT_URL}/scan_local_text`, { 
+        text: currentText, 
+        contact_id: activeChat,
+        sender_id: name 
+      });
       const localData = res.data;
 
       const initialPayload = {
