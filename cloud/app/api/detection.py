@@ -26,12 +26,20 @@ class TextVectorRequest(BaseModel):
     session_id: Optional[str]
 
 class AudioVectorRequest(BaseModel):
-    mfcc_mean: List[float]
-    mfcc_std: List[float]
-    zcr: float
-    spectral_centroid: float
-    pitch_std: float
-    energy_std: float
+    # Old V1 Acoustic Features (Made Optional)
+    mfcc_mean: Optional[List[float]] = None
+    mfcc_std: Optional[List[float]] = None
+    zcr: Optional[float] = None
+    spectral_centroid: Optional[float] = None
+    pitch_std: Optional[float] = None
+    energy_std: Optional[float] = None
+    
+    # New DAVE Architecture fields
+    acoustic_score: Optional[float] = None
+    text_score: Optional[float] = None
+    text_vectors: Optional[dict] = None
+    trust_score: Optional[float] = None
+    
     acoustic_tags: List[str] = []
     transcription: str
     scrubbed_transcription: Optional[str] = ""

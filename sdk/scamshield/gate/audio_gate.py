@@ -25,9 +25,9 @@ class AudioGate:
                 model_name_or_path = local_path
                 
         self.whisper_model = WhisperModel(model_name_or_path, device="auto", compute_type="default")
-        print("Audio gate loaded")
+        print("Audio gate loaded (DAVE Architecture)")
 
-    def run(self, audio_bytes: bytes, context_history: str = "") -> GateResult:
+    def run(self, audio_bytes: bytes, contact_id: str = "unknown") -> GateResult:
         import librosa
         
         with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
@@ -40,60 +40,43 @@ class AudioGate:
             except Exception as e:
                 return GateResult(passed_gate=False, gate_score=0.0, gate_reason=f"Decode error: {e}", vectors={}, modality="audio")
 
-            max_amp = np.max(np.abs(audio))
-            if max_amp < 0.001:
+            # 1. Pre-processor & VAD (RMS Energy thresholding)
+            rms = librosa.feature.rms(y=audio)[0]
+            mean_rms = np.mean(rms)
+            
+            if mean_rms < 0.005:  # Tightened VAD threshold for empty/silent chunks
                 return GateResult(
-                    passed_gate=False, gate_score=0.0, gate_reason="Silence",
+                    passed_gate=False, gate_score=0.0, gate_reason="Silence / No Speech Detected",
                     vectors={}, modality="audio"
                 )
 
-            mfcc = librosa.feature.mfcc(y=audio, sr=16000, n_mfcc=40)
-            mfcc_mean = np.mean(mfcc, axis=1)
-            mfcc_std  = np.std(mfcc, axis=1)
-            zcr = np.mean(librosa.feature.zero_crossing_rate(audio))
-            centroid = np.mean(librosa.feature.spectral_centroid(y=audio, sr=16000))
+            # 2. Path 1: Acoustic Anti-Spoofing Heuristics (Mimicking a lightweight CNN / AASist)
             pitches, mags = librosa.piptrack(y=audio, sr=16000)
             pitch_vals = pitches[pitches > 0]
             pitch_std = np.std(pitch_vals) if len(pitch_vals) > 0 else 0.0
-            energy_std = np.std(np.abs(audio))
-
-            score = 0.0
-            is_active_speech = energy_std > 0.001
             
-            if is_active_speech:
-                if np.mean(mfcc_std) < 5.0:
-                    score += 0.20
-                if centroid > 4500:
-                    score += 0.15
-                if 0 < pitch_std < 10.0:
-                    score += 0.20
-                if energy_std < 0.02:
-                    score += 0.10
-                    
-            acoustic_score = min(score, 1.0)
-
+            # Extract Spectral Flux to detect phase anomalies typical in AI Voice Clones (ElevenLabs etc.)
+            onset_env = librosa.onset.onset_strength(y=audio, sr=16000)
+            flux_variance = np.var(onset_env)
+            
+            acoustic_score = 0.0
             acoustic_tags = []
-            if is_active_speech:
-                if 0 < pitch_std < 10.0:
-                    acoustic_tags.append("Pitch variance: Monotone (Synthetic/Robotic)")
-                else:
-                    acoustic_tags.append("Pitch variance: Natural")
-                    
-                if np.mean(mfcc_std) < 5.0:
-                    acoustic_tags.append("Timbre: Unnaturally uniform (Potential Voice Cloning)")
-                else:
-                    acoustic_tags.append("Timbre: Natural")
-                    
-                if centroid > 4500:
-                    acoustic_tags.append("Spectrum: High frequency noise (Compression/GAN artifacts)")
-            else:
-                acoustic_tags.append("Audio: Mostly silence or background noise")
+            
+            # Rule 1: Robotic TTS (Absolutely flat pitch variance)
+            if 0 < pitch_std < 8.0:
+                acoustic_score += 0.50
+                acoustic_tags.append("Pitch variance: Monotone (Synthetic/Robotic)")
+            elif pitch_std >= 8.0:
+                acoustic_tags.append("Pitch variance: Natural Human")
                 
-            if zcr > 0.15:
-                acoustic_tags.append("Breathing patterns: Irregular or mechanical artifacts")
-            else:
-                acoustic_tags.append("Breathing patterns: Natural pauses detected")
+            # Rule 2: AI Voice Clones (Unnaturally smooth spectral flux / lacking micro-dynamics)
+            if flux_variance < 0.5 and mean_rms > 0.01:
+                acoustic_score += 0.40
+                acoustic_tags.append("Timbre: Micro-dynamics missing (Potential AI Voice Clone)")
+                
+            acoustic_score = min(acoustic_score, 1.0)
 
+            # 3. Path 2: Semantic Intent (Fast-Whisper + CAHS-Gate V2)
             transcription = ""
             try:
                 segments, _ = self.whisper_model.transcribe(tmp_path, language="en", beam_size=1, vad_filter=True)
@@ -102,38 +85,41 @@ class AudioGate:
                 print(f"[DEBUG AUDIO] Whisper Exception: {e}")
                 transcription = ""
 
-            full_semantic_text = f"{context_history} {transcription}".strip()
-            
-            if not full_semantic_text:
-                return GateResult(
-                    passed_gate=False, gate_score=0.0, gate_reason="No speech detected",
-                    vectors={}, modality="audio"
-                )
-                
-            text_result = self.text_gate.run(full_semantic_text)
-            text_score = text_result.gate_score
+            text_score = 0.0
+            text_vectors = {}
+            if transcription:
+                # Pass to CAHS-Gate V2 with contact_id for Historical Context RAG!
+                # Assuming is_saved_contact based on whether it's not "unknown" for this demo
+                is_saved = contact_id != "unknown"
+                text_result = self.text_gate.run(transcription, contact_id=contact_id, is_saved_contact=is_saved, sender="them")
+                text_score = text_result.gate_score
+                text_vectors = text_result.vectors
 
+            # 4. Fusion Engine
             gate_score = max(acoustic_score, text_score)
 
+            reason_parts = []
+            if acoustic_score > 0.4: reason_parts.append(f"Acoustic Anomaly ({acoustic_score:.2f})")
+            if text_score > 0.4: reason_parts.append(f"Semantic Scam Intent ({text_score:.2f})")
+            reason = " and ".join(reason_parts) if reason_parts else "Safe Audio"
+
             return GateResult(
-                passed_gate=gate_score >= 0.30,
+                passed_gate=gate_score >= 0.35, # Tightened threshold
                 gate_score=float(gate_score),
-                gate_reason="Acoustic and text analysis",
+                gate_reason=reason,
                 vectors={
-                    "mfcc_mean": mfcc_mean.tolist(),
-                    "mfcc_std": mfcc_std.tolist(),
-                    "zcr": float(zcr),
-                    "spectral_centroid": float(centroid),
-                    "pitch_std": float(pitch_std),
-                    "energy_std": float(energy_std),
+                    "acoustic_score": float(acoustic_score),
+                    "text_score": float(text_score),
                     "acoustic_tags": acoustic_tags,
                     "transcription": transcription,
-                    "scrubbed_transcription": text_result.vectors.get("scrubbed_transcription", ""),
-                    "keyword_hits": text_result.vectors.get("keyword_hits", []),
-                    "text_vectors": text_result.vectors
+                    "scrubbed_transcription": text_vectors.get("scrubbed_transcription", ""),
+                    "keyword_hits": text_vectors.get("keyword_hits", []),
+                    "text_vectors": text_vectors,
+                    "trust_score": text_vectors.get("trust_score", 0.1)
                 },
                 modality="audio"
             )
         finally:
             if os.path.exists(tmp_path):
-                os.remove(tmp_path)
+                try: os.remove(tmp_path)
+                except: pass

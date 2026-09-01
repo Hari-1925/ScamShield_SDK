@@ -5,11 +5,12 @@ from scamshield.cloud.client import CloudClient
 from scamshield.cloud.endpoints import CloudEndpoints
 
 class AudioStreamClient(AudioStreamSession):
-    def __init__(self, ws_url: str, api_key: str, audio_gate: AudioGate, cloud_client: CloudClient = None):
+    def __init__(self, ws_url: str, api_key: str, audio_gate: AudioGate, cloud_client: CloudClient = None, contact_id: str = "unknown"):
         self.ws_url = ws_url
         self.api_key = api_key
         self.audio_gate = audio_gate
         self.cloud_client = cloud_client
+        self.contact_id = contact_id
         self.running_score = 0.0
         self.alert_level = AlertLevel.NONE
         self.is_active = True
@@ -25,21 +26,21 @@ class AudioStreamClient(AudioStreamSession):
 
     async def send_chunk(self, audio_bytes: bytes) -> StreamChunkResult:
         self.chunk_id += 1
-        context = " ".join(self.transcript_history[-5:])
         
-        gate_res = self.audio_gate.run(audio_bytes, context_history=context)
+        # AudioGate V2 handles context history internally via sqlite, so we pass contact_id
+        gate_res = self.audio_gate.run(audio_bytes, contact_id=self.contact_id)
         
         new_text = gate_res.vectors.get("transcription", "").strip()
         if new_text:
             self.transcript_history.append(new_text)
         
         audio_vectors = {
-            "mfcc_mean": gate_res.vectors.get("mfcc_mean", [0.0] * 40),
-            "mfcc_std": gate_res.vectors.get("mfcc_std", [0.0] * 40),
-            "zcr": gate_res.vectors.get("zcr", 0.0),
-            "spectral_centroid": gate_res.vectors.get("spectral_centroid", 0.0),
-            "pitch_std": gate_res.vectors.get("pitch_std", 0.0),
-            "energy_std": gate_res.vectors.get("energy_std", 0.0),
+            # DAVE Fields
+            "acoustic_score": gate_res.vectors.get("acoustic_score", 0.0),
+            "text_score": gate_res.vectors.get("text_score", 0.0),
+            "text_vectors": gate_res.vectors.get("text_vectors", {}),
+            "trust_score": gate_res.vectors.get("trust_score", 0.1),
+            
             "acoustic_tags": gate_res.vectors.get("acoustic_tags", []),
             "transcription": gate_res.vectors.get("transcription", ""),
             "scrubbed_transcription": gate_res.vectors.get("scrubbed_transcription", ""),

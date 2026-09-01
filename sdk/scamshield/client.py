@@ -188,14 +188,15 @@ class ScamShield:
                 modality="video"
             )
 
-    async def start_audio_stream(self) -> AudioStreamSession:
+    async def start_audio_stream(self, contact_id: str = "unknown") -> AudioStreamSession:
         self._ensure_models_loaded()
         from scamshield.streaming.audio_stream import AudioStreamClient
         client = AudioStreamClient(
             ws_url=f"{self.cloud_url.replace('http', 'ws')}{CloudEndpoints.STREAM_AUDIO}",
             api_key=self.api_key,
             audio_gate=self.audio_gate,
-            cloud_client=self.cloud
+            cloud_client=self.cloud,
+            contact_id=contact_id
         )
         await client.connect()
         return client

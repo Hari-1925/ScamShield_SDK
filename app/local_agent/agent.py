@@ -2,7 +2,7 @@ import sys
 import os
 import asyncio
 import traceback
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, Any
@@ -75,7 +75,7 @@ async def scan_local_text(msg: LocalTextRequest):
         return {"is_scam": False, "error": str(e)}
 
 @app.post("/scan_local_media")
-async def scan_local_media(file: UploadFile = File(...)):
+async def scan_local_media(file: UploadFile = File(...), contact_id: str = Form("unknown")):
     if not models_loaded:
         return {"is_scam": False, "error": "AI models loading"}
 
@@ -87,7 +87,7 @@ async def scan_local_media(file: UploadFile = File(...)):
             gate_res = shield.image_gate.run(content)
             modality = "image"
         elif mime.startswith("audio/"):
-            gate_res = shield.audio_gate.run(content)
+            gate_res = shield.audio_gate.run(content, contact_id=contact_id)
             modality = "audio"
         elif mime.startswith("video/"):
             gate_res = shield.video_gate.run(content)
@@ -128,9 +128,10 @@ async def scan_cloud(req: CloudScanRequest):
         }
 
 @app.websocket("/scan_call_stream")
-async def scan_call_stream(websocket: WebSocket):
+async def scan_call_stream(websocket: WebSocket, contact_id: str = "unknown"):
     await websocket.accept()
-    session = await shield.start_audio_stream()
+    # Pass contact_id to start_audio_stream (which we'll update in SDK)
+    session = await shield.start_audio_stream(contact_id=contact_id)
     
     async def listen_cloud_events():
         while session.is_active:

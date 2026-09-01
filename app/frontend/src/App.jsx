@@ -333,6 +333,7 @@ function App() {
     setIsScanningMedia(true);
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('contact_id', activeChat);
     const msgId = generateId();
 
     try {
