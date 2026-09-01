@@ -88,7 +88,7 @@ class VideoGate:
                 acoustic_tags = audio_result.vectors.get("acoustic_tags", [])
 
             return GateResult(
-                passed_gate=gate_score >= 0.35, # Strict threshold
+                passed_gate=gate_score >= 0.50, # Relaxed threshold to reduce false positives
                 gate_score=float(gate_score),
                 gate_reason="Video frame and audio analysis",
                 vectors={
