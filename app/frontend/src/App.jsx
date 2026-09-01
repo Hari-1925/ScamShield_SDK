@@ -86,7 +86,10 @@ function App() {
   }, []);
 
   useEffect(() => {
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then((mediaStream) => {
+    navigator.mediaDevices.getUserMedia({ 
+      video: true, 
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
+    }).then((mediaStream) => {
       setStream(mediaStream);
       if (myVideo.current) {
         myVideo.current.srcObject = mediaStream;

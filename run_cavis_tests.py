@@ -36,7 +36,7 @@ print("==================================================")
 
 # 1. Lottery Scam Image
 print("\n[Running Test 1: Fake Bank Receipt / Scam Screenshot]")
-with open(os.path.join(tests_dir, "lottery_scam.png"), "rb") as f:
+with open(os.path.join(tests_dir, "Video", "lottery_scam.png"), "rb") as f:
     r = image_gate.run(f.read())
 print_result("Screenshot with Scam Text", r)
 

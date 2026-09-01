@@ -32,8 +32,6 @@ class AudioGate:
         import warnings
         
         # Suppress PySoundFile and audioread fallback warnings caused by WebM files
-        warnings.filterwarnings("ignore", category=UserWarning, module="librosa")
-        warnings.filterwarnings("ignore", category=FutureWarning, module="librosa")
         
         with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
             tmp.write(audio_bytes)
@@ -41,7 +39,10 @@ class AudioGate:
             
         try:
             try:
-                audio, sr = librosa.load(tmp_path, sr=16000, mono=True)
+                import warnings
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    audio, sr = librosa.load(tmp_path, sr=16000, mono=True)
             except Exception as e:
                 return GateResult(passed_gate=False, gate_score=0.0, gate_reason=f"Decode error: {e}", vectors={}, modality="audio")
 
