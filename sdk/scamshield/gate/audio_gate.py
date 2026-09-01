@@ -114,7 +114,7 @@ class AudioGate:
             reason = " and ".join(reason_parts) if reason_parts else "Safe Audio"
 
             return GateResult(
-                passed_gate=gate_score >= 0.50, # Relaxed threshold to prevent false positives on normal microphones
+                passed_gate=gate_score >= 0.35, # Tightened threshold
                 gate_score=float(gate_score),
                 gate_reason=reason,
                 vectors={
