@@ -467,7 +467,13 @@ function App() {
               <div className="w-10 h-10 bg-[#dfe5e7] rounded-full flex items-center justify-center text-gray-600 font-bold">
                 {name.substring(0,1).toUpperCase()}
               </div>
-              <div className="font-medium text-gray-800">{name}</div>
+                <input 
+                  type="text" 
+                  value={name} 
+                  onChange={(e) => setName(e.target.value)}
+                  className="font-medium text-gray-800 bg-transparent border-b border-gray-300 outline-none max-w-[120px]"
+                  title="Click to edit username"
+                />
             </div>
             <div className="flex text-gray-500 gap-4">
               {aiStatus === 'ready' ? 
