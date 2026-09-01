@@ -128,7 +128,7 @@ class GeminiService:
                 "recommendation": "This content appears safe."
             }
         return {
-            "confidence_score": max(score, 0.75),
+            "confidence_score": score,
             "scam_type": scam_type or "suspicious_activity",
             "explanation": "Suspicious content detected by fallback system.",
             "recommendation": "Do not share personal information."

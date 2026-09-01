@@ -141,10 +141,14 @@ class TextGate:
         gate_score = max(0.0, min(gate_score, 1.0))
 
         # 5. Decision
-        threshold = 0.60 # Stable threshold for the continuous function
-        passed = gate_score >= threshold
+        passed = gate_score >= 0.55
         
-        reason = f"Intent: {top_intent} ({top_intent_score:.2f}). Trust: {trust_score:.2f}. Mitigated: {is_context_mitigated}"
+        reason = "Safe"
+        if passed:
+            if is_context_mitigated:
+                reason = f"Mitigated by Context. Intent: {top_intent} ({top_intent_score:.2f})"
+            else:
+                reason = f"Intent: {top_intent} ({top_intent_score:.2f}). Trust: {trust_score:.2f}. Mitigated: {is_context_mitigated}"
         
         from scamshield.privacy.scrubber import PIIScrubber
         scrubber = PIIScrubber()

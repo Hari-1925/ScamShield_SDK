@@ -102,8 +102,43 @@ function App() {
       setUsers(usersList.filter(id => id !== socket.id));
     };
 
-    const onReceiveMessage = (data) => {
+    const onReceiveMessage = async (data) => {
+      // Add the message to UI immediately so chat feels fast
       setMessages((prev) => [...prev, data]);
+      
+      // If it's a regular text message from SOMEONE ELSE that hasn't been flagged yet
+      if (!data.mediaUrl && !data.isMalicious && data.user !== name) {
+          try {
+              // The RECEIVER'S edge AI scans the message natively
+              const res = await axios.post(`${LOCAL_AGENT_URL}/scan_local_text`, { text: data.text, contact_id: data.user });
+              const localData = res.data;
+              
+              if (localData.is_scam && !localData.error) {
+                  // Instantly update the UI to warn the receiver!
+                  setMessages((prev) => prev.map(m => m.id === data.id ? { ...m, isMalicious: true, isPending: true, alert: 'yellow', explanation: 'Locally assessed as suspicious. Pending Cloud AI verification...' } : m));
+                  
+                  // Escalate to Cloud for final verification
+                  const cloudRes = await axios.post(`${LOCAL_AGENT_URL}/scan_cloud`, {
+                      modality: localData.modality,
+                      vectors: localData.vectors,
+                      gate_score: localData.gate_score
+                  });
+                  
+                  const report = cloudRes.data;
+                  const newAlert = report.alert_level || 'red';
+                  setMessages((prev) => prev.map(m => m.id === data.id ? { 
+                      ...m, 
+                      isPending: false,
+                      isMalicious: (newAlert !== 'none' && newAlert !== 'green'), 
+                      alert: newAlert, 
+                      explanation: report.explanation || 'Cloud verification completed.',
+                      scamType: report.scam_type 
+                  } : m));
+              }
+          } catch (e) {
+              console.error("Local incoming scan failed:", e);
+          }
+      }
     };
 
     const onMessageUpdated = (data) => {
@@ -295,11 +330,13 @@ function App() {
           gate_score: localData.gate_score
         }).then((cloudRes) => {
           const report = cloudRes.data;
+          const newAlert = report.alert_level || 'yellow';
           socket.emit('update-message', {
             id: msgId,
             updates: {
               isPending: false,
-              alert: report.alert_level || 'yellow',
+              isMalicious: (newAlert !== 'none' && newAlert !== 'green'),
+              alert: newAlert,
               explanation: report.explanation || 'Cloud verification completed.'
             }
           });
@@ -364,11 +401,13 @@ function App() {
             gate_score: localData.gate_score
           }).then((cloudRes) => {
             const report = cloudRes.data;
+            const newAlert = report.alert_level || 'yellow';
             socket.emit('update-message', {
               id: msgId,
               updates: {
                 isPending: false,
-                alert: report.alert_level || 'yellow',
+                isMalicious: (newAlert !== 'none' && newAlert !== 'green'),
+                alert: newAlert,
                 explanation: report.explanation || 'Cloud verification completed.'
               }
             });

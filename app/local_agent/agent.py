@@ -60,9 +60,10 @@ async def scan_local_text(msg: LocalTextRequest):
         return {"is_suspicious": False, "error": "AI models loading"}
     
     try:
-        # Assuming contacts in chat app are usually saved contacts.
-        # Hardcoding is_saved_contact=True for demo if contact_id is provided
-        is_saved = msg.contact_id != "unknown"
+        # In a real app, this would check the user's phone contacts.
+        # For the demo, we assume incoming random chats are NOT saved contacts 
+        # unless they have interacted heavily before.
+        is_saved = False
         gate_res = shield.text_gate.run(msg.text, contact_id=msg.contact_id, is_saved_contact=is_saved)
         return {
             "is_scam": gate_res.passed_gate,

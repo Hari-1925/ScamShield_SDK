@@ -143,7 +143,7 @@ class LyzrService:
         except Exception:
             # Fallback if parsing fails or Mock is used
             return {
-                "confidence_score": max(req_dict.get("gate_score", 0.0), 0.75),
+                "confidence_score": req_dict.get("gate_score", 0.5),
                 "scam_type": "suspicious_activity",
                 "explanation": "Scam detected based on vector anomalies.",
                 "recommendation": "Do not proceed."
