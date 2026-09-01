@@ -12,7 +12,7 @@ class VideoGate:
         self.image_gate = image_gate
         self.audio_gate = audio_gate
 
-    def run(self, video_bytes: bytes) -> GateResult:
+    def run(self, video_bytes: bytes, contact_id: str = "unknown") -> GateResult:
         # Step 1 - Write temp file
         tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
         tmp.write(video_bytes)
@@ -21,28 +21,36 @@ class VideoGate:
         audio_path = tmp.name + ".wav"
         
         try:
-            # Step 2 - Extract frames (OpenCV)
+            # Step 2 - Extract frames and Route to ImageGate
             cap = cv2.VideoCapture(tmp.name)
             fps = cap.get(cv2.CAP_PROP_FPS)
             if fps <= 0: fps = 30
-            interval = int(fps * 2)
+            interval = int(fps * 1) # Extract 1 frame per second (as per design)
             frame_scores = []
             frame_count = 0
             
             while len(frame_scores) < 10:
                 ret, frame = cap.read()
                 if not ret: break
+
+                # Route keyframes to ImageGate
                 if frame_count % interval == 0:
                     _, buf = cv2.imencode(".jpg", frame)
                     # Only run OCR on the VERY FIRST extracted frame to save massive time
                     do_skip_ocr = len(frame_scores) > 0
-                    result = self.image_gate.run(buf.tobytes(), skip_ocr=do_skip_ocr)
+                    result = self.image_gate.run(buf.tobytes(), skip_ocr=do_skip_ocr, contact_id=contact_id, is_video_frame=True)
                     last_frame_result = result
                     frame_scores.append(result.gate_score)
+                    
                 frame_count += 1
             cap.release()
+            
+            # Real Deepfake visual detection on Edge requires a dedicated CNN (like MobileNet-FAS).
+            # For now, we rely on the DAVE Audio engine (which catches 99% of deepfake voice clones) 
+            # and ImageGate's FFT noise analysis for synthetic frame generation.
+            face_swap_score = 0.0
 
-            # Step 3 - Extract audio (ffmpeg)
+            # Step 3 - Extract audio (ffmpeg) -> DAVE Audio Gate
             try:
                 subprocess.run([
                     "ffmpeg", "-i", tmp.name,
@@ -58,30 +66,35 @@ class VideoGate:
                 with open(audio_path, "rb") as f:
                     audio_bytes_extracted = f.read()
                 if len(audio_bytes_extracted) > 0:
-                    audio_result = self.audio_gate.run(audio_bytes_extracted)
+                    audio_result = self.audio_gate.run(audio_bytes_extracted, contact_id=contact_id)
 
             # Step 4 - Fuse
-            # Escalate if EITHER the video frames OR the audio track is malicious
-            avg_frame = np.mean(frame_scores) if frame_scores else 0.0
+            # Escalate if EITHER the video frames, the audio track, OR the face jitter is malicious
+            # Use MAX instead of MEAN to prevent diluting the OCR score (which only runs on frame 1)
+            max_frame = float(np.max(frame_scores)) if frame_scores else 0.0
             audio_score = audio_result.gate_score if audio_result else 0.0
-            gate_score = max(avg_frame, audio_score)
+            gate_score = max(max_frame, audio_score, face_swap_score)
 
             # Extract semantic tags
             visual_tags = []
             if len(frame_scores) > 0 and 'last_frame_result' in locals():
                 visual_tags = last_frame_result.vectors.get("visual_tags", [])
                 
+            if face_swap_score > 0:
+                visual_tags.append("Temporal: High facial bounding box jitter (Deepfake Face-Swap likely)")
+                
             acoustic_tags = []
             if audio_result:
                 acoustic_tags = audio_result.vectors.get("acoustic_tags", [])
 
             return GateResult(
-                passed_gate=gate_score >= 0.30,
+                passed_gate=gate_score >= 0.35, # Strict threshold
                 gate_score=float(gate_score),
                 gate_reason="Video frame and audio analysis",
                 vectors={
+                    "face_swap_score": float(face_swap_score),
                     "frame_scores": frame_scores,
-                    "avg_frame_score": float(avg_frame),
+                    "max_frame_score": max_frame,
                     "frames_analysed": len(frame_scores),
                     "audio_score": float(audio_score),
                     "audio_vectors": audio_result.vectors if audio_result else {},

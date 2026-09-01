@@ -18,46 +18,68 @@ class ImageGate:
         self.face_cascade = cv2.CascadeClassifier(cascade_path)
         print("Image gate loaded")
 
-    def run(self, image_bytes: bytes, skip_ocr: bool = False) -> GateResult:
+    def run(self, image_bytes: bytes, skip_ocr: bool = False, contact_id: str = "unknown", is_video_frame: bool = False) -> GateResult:
         import pytesseract
         
         # Step 1 - Load & Resize (MASSIVE SPEEDUP)
-        img = Image.open(io.BytesIO(image_bytes))
-        img_rgb = img.convert("RGB")
+        try:
+            img = Image.open(io.BytesIO(image_bytes))
+            img_rgb = img.convert("RGB")
+        except Exception as e:
+            return GateResult(
+                passed_gate=False, gate_score=0.0, gate_reason="Corrupt or Unsupported Image",
+                vectors={}, modality="image"
+            )
         
         # Max dimension 1024 to speed up Tesseract and ELA by 10x
         if max(img_rgb.size) > 1024:
             img_rgb.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
 
-        # Step 2 - ELA
-        buffer = io.BytesIO()
-        img_rgb.save(buffer, "JPEG", quality=90)
-        buffer.seek(0)
-        compressed = Image.open(buffer)
-        
-        arr_orig = np.array(img_rgb).astype(int)
-        arr_comp = np.array(compressed).astype(int)
-            
-        ela_arr = np.abs(arr_orig - arr_comp)
-        ela_mean = float(np.mean(ela_arr))
-        ela_std  = float(np.std(ela_arr))
-        ela_max  = float(np.max(ela_arr))
-
-        # Step 3 - ELA score
+        # Step 2 - ELA (Error Level Analysis for Forgery)
         ela_score = 0.0
-        if ela_mean > 15: ela_score += 0.30
-        if ela_std  > 12: ela_score += 0.20
-        if ela_max  > 80: ela_score += 0.15
+        ela_mean = ela_std = ela_max = 0.0
+        
+        # Disable ELA for video frames because H264 compression naturally causes massive JPEG block artifacts
+        if not is_video_frame:
+            buffer = io.BytesIO()
+            img_rgb.save(buffer, "JPEG", quality=90)
+            buffer.seek(0)
+            compressed = Image.open(buffer)
+            
+            arr_orig = np.array(img_rgb).astype(int)
+            arr_comp = np.array(compressed).astype(int)
+                
+            ela_arr = np.abs(arr_orig - arr_comp)
+            ela_mean = float(np.mean(ela_arr))
+            ela_std  = float(np.std(ela_arr))
+            ela_max  = float(np.max(ela_arr))
 
-        # Step 4 - Noise analysis
+            # Step 3 - ELA score
+            if ela_mean > 15: ela_score += 0.30
+            if ela_std  > 12: ela_score += 0.20
+            if ela_max  > 80: ela_score += 0.15
+
+        # Step 4 - Frequency & Noise analysis (FFT) for AI/GAN detection
         gray = np.array(img_rgb.convert("L")).astype(float)
-        blurred = scipy.ndimage.uniform_filter(gray, size=3)
-        noise = gray - blurred
-        noise_std = float(np.std(noise))
-        # H.264 compression lowers noise_std to ~2.0. True GANs are often < 1.2
-        noise_score = 0.20 if noise_std < 1.2 else 0.0
+        
+        # Fast 2D FFT to find high-frequency spectral artifacts common in GANs
+        f_transform = np.fft.fft2(gray)
+        f_shift = np.fft.fftshift(f_transform)
+        magnitude_spectrum = 20 * np.log(np.abs(f_shift) + 1)
+        # Compute ratio of high frequencies (edges/noise) to low frequencies (structure)
+        h, w = gray.shape
+        center_h, center_w = h // 2, w // 2
+        # Mask out low frequencies
+        mask = np.ones((h, w))
+        r = min(h, w) // 4
+        y, x = np.ogrid[-center_h:h-center_h, -center_w:w-center_w]
+        mask[x**2 + y**2 <= r**2] = 0
+        high_freq_mag = np.mean(magnitude_spectrum * mask)
+        
+        # Unnaturally low high-frequency magnitude means smooth/plastic texture (Diffusion/GANs)
+        noise_score = 0.25 if high_freq_mag < 100 else 0.0
 
-        # Step 5 - OCR
+        # Step 5 - OCR -> TextGate CAHS V2
         tess_path = os.getenv("TESSERACT_PATH", r"C:\Program Files\Tesseract-OCR\tesseract.exe")
         pytesseract.pytesseract.tesseract_cmd = tess_path
         
@@ -67,9 +89,11 @@ class ImageGate:
         
         if not skip_ocr:
             try:
-                ocr_text = pytesseract.image_to_string(img_rgb)
-                if ocr_text.strip():
-                    ocr_result = self.text_gate.run(ocr_text)
+                ocr_text = pytesseract.image_to_string(img_rgb).strip()
+                if ocr_text:
+                    # Pass the contact_id for Historical RAG Trust checks on OCR text!
+                    is_saved = contact_id != "unknown"
+                    ocr_result = self.text_gate.run(ocr_text, contact_id=contact_id, is_saved_contact=is_saved)
                     ocr_score = ocr_result.gate_score
             except Exception as e:
                 print(f"OCR failed (Tesseract may not be installed): {e}")
@@ -86,19 +110,17 @@ class ImageGate:
         # Step 7 - Semantic Feature Abstraction (Visual Tags)
         visual_tags = []
         if ela_mean > 15 or ela_max > 80:
-            visual_tags.append("Lighting consistency: Artificial/Mismatched shadows (High ELA)")
-        else:
-            visual_tags.append("Lighting consistency: Natural shadows")
+            visual_tags.append("Forgery: Spliced text or mismatched JPEG blocks (Fake Receipt/Document)")
             
-        if noise_std < 1.2:
-            visual_tags.append("Pixel texture: Unnaturally smooth (GAN/AI generation)")
+        if noise_score > 0:
+            visual_tags.append("Texture: Unnaturally smooth frequency distribution (AI Generated Fake Person)")
             
         if face_detected and (ela_mean > 15):
-            visual_tags.append("Face region: Significant digital manipulation detected (Deepfake Face-Swap likely)")
+            visual_tags.append("Face region: Significant digital manipulation detected")
 
         # Step 8 - Fuse
-        # Use max instead of average so that if EITHER the image is manipulated
-        # OR the text in the image contains a scam, it escalates.
+        # ELA + Frequency gives image_threat. 
+        # OCR gives semantic threat. We escalate if EITHER is malicious.
         image_threat = min(ela_score + noise_score, 1.0)
         gate_score = max(image_threat, ocr_score)
 
@@ -110,7 +132,7 @@ class ImageGate:
                 "ela_mean": ela_mean,
                 "ela_std": ela_std,
                 "ela_max": ela_max,
-                "noise_std": noise_std,
+                "noise_std": float(high_freq_mag), # Map it back so cloud doesn't break
                 "face_detected": face_detected,
                 "visual_tags": visual_tags,
                 "ocr_text": ocr_text,

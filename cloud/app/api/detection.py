@@ -56,12 +56,14 @@ class ImageVectorRequest(BaseModel):
     visual_tags: List[str] = []
     ocr_text: str
     ocr_score: float
+    ocr_vectors: Optional[dict] = {}
     gate_score: float
     session_id: Optional[str]
 
 class VideoVectorRequest(BaseModel):
+    face_swap_score: Optional[float] = 0.0
     frame_scores: List[float]
-    avg_frame_score: float
+    max_frame_score: float
     frames_analysed: int
     audio_score: float
     audio_vectors: dict

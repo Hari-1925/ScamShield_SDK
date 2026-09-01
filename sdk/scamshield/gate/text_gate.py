@@ -114,9 +114,14 @@ class TextGate:
                 past_emb = self.model.encode([past_msg])[0]
                 past_sims = cosine_similarity([past_emb], self.intent_matrix)[0]
                 
+                # Aggregate past scores by intent (same as we do for the current message)
+                past_intent_scores = {intent: 0.0 for intent in self.INTENT_ANCHORS.keys()}
+                for i, score in enumerate(past_sims):
+                    label = self.intent_labels[i]
+                    past_intent_scores[label] = max(past_intent_scores[label], float(score))
+                
                 # Look specifically at their historical score for the CURRENT active intent
-                intent_idx = self.intent_labels.index(top_intent)
-                past_scores.append(past_sims[intent_idx])
+                past_scores.append(past_intent_scores[top_intent])
                 
             if past_scores:
                 historical_intent_baseline = float(max(past_scores))
