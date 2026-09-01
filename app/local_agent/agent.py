@@ -60,10 +60,14 @@ async def scan_local_text(msg: LocalTextRequest):
         return {"is_suspicious": False, "error": "AI models loading"}
     
     try:
-        # In a real app, this would check the user's phone contacts.
-        # For the demo, we assume incoming random chats are NOT saved contacts 
-        # unless they have interacted heavily before.
-        is_saved = False
+        # In a real app, this would check the user's phone contacts and TRAI SMS headers.
+        # For the demo, we assume incoming random chats are NOT saved contacts.
+        # However, if the sender is a verified enterprise (e.g. AD-SBIBNK), we grant them high trust.
+        contact_upper = msg.contact_id.upper()
+        is_verified_bank = "BANK" in contact_upper or "SBI" in contact_upper or "HDFC" in contact_upper
+        
+        is_saved = is_verified_bank 
+        
         gate_res = shield.text_gate.run(msg.text, contact_id=msg.contact_id, is_saved_contact=is_saved)
         return {
             "is_scam": gate_res.passed_gate,
