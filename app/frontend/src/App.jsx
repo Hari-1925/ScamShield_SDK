@@ -471,8 +471,9 @@ function App() {
                   type="text" 
                   value={name} 
                   onChange={(e) => setName(e.target.value)}
-                  className="font-medium text-gray-800 bg-transparent border-b border-gray-300 outline-none max-w-[120px]"
-                  title="Click to edit username"
+                  className="font-bold text-gray-800 bg-white border border-gray-300 rounded px-2 py-1 outline-none focus:border-green-500 max-w-[120px]"
+                  title="Edit your Username"
+                  placeholder="Your Name"
                 />
             </div>
             <div className="flex text-gray-500 gap-4">
