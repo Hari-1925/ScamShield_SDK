@@ -12,7 +12,7 @@ class TextGate:
     INTENT_ANCHORS = {
         "urgency": [
             "urgent action required", "your account will be blocked", "do this immediately", 
-            "hurry up", "jaldi karo", "do it fast", "action needed now", "account block ho jayega"
+            "hurry up", "do it fast", "action needed now"
         ],
         "financial_ask": [
             "send me the money", "transfer funds to this account", "pay the customs fee", 
@@ -23,8 +23,7 @@ class TextGate:
         "info_extraction": [
             "share the otp", "what is your password", "tell me the verification code", 
             "confirm your account details", "kyc update", "send the pin", "enter your upi pin",
-            "scan this qr code", "otp bhej", "recite me the otp", "send me your odb", 
-            "verify your authenticity and the kyc", "odb"
+            "scan this qr code"
         ],
         "coercion": [
             "this is the police", "you are under arrest", "we will take legal action", 
@@ -100,36 +99,44 @@ class TextGate:
         top_intent = max(intent_scores, key=intent_scores.get)
         top_intent_score = intent_scores[top_intent]
         
-        # Normalize semantic score (thresholding around 0.30)
-        semantic_score = max(0.0, (top_intent_score - 0.25) / 0.75)
-
-        # 4. Hybrid Scoring & Historical RAG
-        context_mitigation = 0.0
+        # 4. Generalized Behavioral Trust Scoring
+        # Instead of arbitrary penalties and similarity hacks, we modulate the threat
+        # based on continuous Trust and Behavioral Deviation.
+        
+        historical_intent_baseline = 0.0
         is_context_mitigated = False
         
-        if trust_score > 0.7 and (intent_scores["info_extraction"] > 0.3 or intent_scores["financial_ask"] > 0.3):
+        if trust_score > 0.3:
             history = self.context_engine.get_recent_messages(contact_id, limit=5)
+            past_scores = []
             for past_msg in history[1:]:
                 if not past_msg.strip(): continue
-                past_embedding = self.model.encode([past_msg])[0]
-                hist_sim = float(cosine_similarity([embedding], [past_embedding])[0][0])
+                past_emb = self.model.encode([past_msg])[0]
+                past_sims = cosine_similarity([past_emb], self.intent_matrix)[0]
                 
-                # Lowered mitigation threshold to catch variations in conversational intent
-                if hist_sim > 0.20:
-                    context_mitigation = 0.5
+                # Look specifically at their historical score for the CURRENT active intent
+                intent_idx = self.intent_labels.index(top_intent)
+                past_scores.append(past_sims[intent_idx])
+                
+            if past_scores:
+                historical_intent_baseline = float(max(past_scores))
+                if top_intent_score - historical_intent_baseline < 0.10:
                     is_context_mitigated = True
-                    break
                     
-        # If it's a completely unknown sender, we boost the score slightly for asks
-        trust_penalty = 0.0
-        if trust_score < 0.2 and (intent_scores["financial_ask"] > 0.3 or intent_scores["urgency"] > 0.3 or intent_scores["info_extraction"] > 0.3):
-            trust_penalty = 0.3
-            
-        gate_score = min(semantic_score + url_score + trust_penalty - context_mitigation, 1.0)
-        gate_score = max(0.0, gate_score)
+        # Unified Mathematical Equation (No magic case-by-case if statements)
+        # 1. Base Threat: How suspicious is the text natively? (0.2 to 0.8 usually)
+        # 2. URL Penalty: Adds flat risk if URLs are present
+        # 3. Stranger Penalty: Low trust dynamically increases the risk surface
+        # 4. Behavioral Discount: If they historically talk like this, it reduces risk
+        
+        stranger_penalty = (1.0 - trust_score) * 0.25
+        behavioral_discount = historical_intent_baseline * 0.25
+        
+        gate_score = top_intent_score + url_score + stranger_penalty - behavioral_discount
+        gate_score = max(0.0, min(gate_score, 1.0))
 
         # 5. Decision
-        threshold = 0.40 # Tweaked threshold for optimal FP/FN balance
+        threshold = 0.60 # Stable threshold for the continuous function
         passed = gate_score >= threshold
         
         reason = f"Intent: {top_intent} ({top_intent_score:.2f}). Trust: {trust_score:.2f}. Mitigated: {is_context_mitigated}"

@@ -36,6 +36,17 @@ class PreProcessor:
         for pattern, replacement in phonetic_fixes.items():
             text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
             
+        # Multilingual / Hinglish Fast Translation (keeps semantic intent space purely English)
+        hinglish_map = {
+            r'\bjaldi( karo)?\b': 'hurry up',
+            r'\bbhej\b': 'send',
+            r'\baccount block ho jayega\b': 'account will be blocked',
+            r'\bmadad\b': 'help',
+            r'\bpaisa\b': 'money'
+        }
+        for pattern, replacement in hinglish_map.items():
+            text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+            
         # Remove interspersed spaces/dots in words (e.g. "o t p", "o.t.p")
         # A simple heuristic: if there's a sequence of single characters separated by spaces/dots
         # This regex looks for patterns like 'o t p' or 'a c c o u n t'
