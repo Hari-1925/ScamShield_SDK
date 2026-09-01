@@ -51,35 +51,39 @@ class AudioGate:
                 )
 
             # 2. Path 1: Acoustic Anti-Spoofing Heuristics (Mimicking a lightweight CNN / AASist)
-            pitches, mags = librosa.piptrack(y=audio, sr=16000)
-            pitch_vals = pitches[pitches > 0]
-            pitch_std = np.std(pitch_vals) if len(pitch_vals) > 0 else 0.0
-            
-            # Extract Spectral Flux to detect phase anomalies typical in AI Voice Clones (ElevenLabs etc.)
             onset_env = librosa.onset.onset_strength(y=audio, sr=16000)
             flux_variance = np.var(onset_env)
+            
+            mfcc = librosa.feature.mfcc(y=audio, sr=16000, n_mfcc=40)
+            mfcc_std_mean = np.mean(np.std(mfcc, axis=1))
             
             acoustic_score = 0.0
             acoustic_tags = []
             
-            # Rule 1: Robotic TTS (Absolutely flat pitch variance)
-            if 0 < pitch_std < 8.0:
-                acoustic_score += 0.50
-                acoustic_tags.append("Pitch variance: Monotone (Synthetic/Robotic)")
-            elif pitch_std >= 8.0:
-                acoustic_tags.append("Pitch variance: Natural Human")
+            # Rule 1: High MFCC variance often indicates over-articulated TTS (e.g. older AI voices)
+            if mfcc_std_mean > 16.0:
+                acoustic_score += 0.35
+                acoustic_tags.append("Timbre: Unnatural over-articulation (Potential TTS)")
                 
-            # Rule 2: AI Voice Clones (Unnaturally smooth spectral flux / lacking micro-dynamics)
-            if flux_variance < 0.5 and mean_rms > 0.01:
-                acoustic_score += 0.40
-                acoustic_tags.append("Timbre: Micro-dynamics missing (Potential AI Voice Clone)")
+            # Rule 2: Unnaturally high onset flux (Robotic punchiness in consonants)
+            if flux_variance > 9.0:
+                acoustic_score += 0.35
+                acoustic_tags.append("Dynamics: Unnatural consonant punchiness (Potential Voice Clone)")
                 
             acoustic_score = min(acoustic_score, 1.0)
 
             # 3. Path 2: Semantic Intent (Fast-Whisper + CAHS-Gate V2)
             transcription = ""
             try:
-                segments, _ = self.whisper_model.transcribe(tmp_path, language="en", beam_size=1, vad_filter=True)
+                # ZERO-LATENCY FIX: Guide Whisper's decoder with domain-specific vocabulary
+                scam_vocab_prompt = "OTP, PIN, CVV, KYC, password, bank account, money, transfer, police, urgent, scam, fraud"
+                segments, _ = self.whisper_model.transcribe(
+                    tmp_path, 
+                    language="en", 
+                    beam_size=1, 
+                    vad_filter=True,
+                    initial_prompt=scam_vocab_prompt
+                )
                 transcription = " ".join(s.text for s in segments).strip()
             except Exception as e:
                 print(f"[DEBUG AUDIO] Whisper Exception: {e}")

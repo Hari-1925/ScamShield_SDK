@@ -23,6 +23,19 @@ class PreProcessor:
         for k, v in replacements.items():
             text = text.replace(k, v)
             
+        # Common phonetic / Whisper transcription errors
+        phonetic_fixes = {
+            r'\bodb\b': 'otp',
+            r'\bo d b\b': 'otp',
+            r'\bseavy\b': 'cvv',
+            r'\bkay why see\b': 'kyc',
+            r'\bk y c\b': 'kyc',
+            r'\byou p i\b': 'upi',
+            r'\bpin number\b': 'pin'
+        }
+        for pattern, replacement in phonetic_fixes.items():
+            text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+            
         # Remove interspersed spaces/dots in words (e.g. "o t p", "o.t.p")
         # A simple heuristic: if there's a sequence of single characters separated by spaces/dots
         # This regex looks for patterns like 'o t p' or 'a c c o u n t'

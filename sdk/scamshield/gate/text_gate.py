@@ -23,7 +23,8 @@ class TextGate:
         "info_extraction": [
             "share the otp", "what is your password", "tell me the verification code", 
             "confirm your account details", "kyc update", "send the pin", "enter your upi pin",
-            "scan this qr code", "otp bhej"
+            "scan this qr code", "otp bhej", "recite me the otp", "send me your odb", 
+            "verify your authenticity and the kyc", "odb"
         ],
         "coercion": [
             "this is the police", "you are under arrest", "we will take legal action", 
