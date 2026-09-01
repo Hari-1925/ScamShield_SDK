@@ -29,6 +29,11 @@ class AudioGate:
 
     def run(self, audio_bytes: bytes, contact_id: str = "unknown") -> GateResult:
         import librosa
+        import warnings
+        
+        # Suppress PySoundFile and audioread fallback warnings caused by WebM files
+        warnings.filterwarnings("ignore", category=UserWarning, module="librosa")
+        warnings.filterwarnings("ignore", category=FutureWarning, module="librosa")
         
         with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
             tmp.write(audio_bytes)
