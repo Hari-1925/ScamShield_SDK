@@ -135,7 +135,7 @@ class TextGate:
         # 4. Behavioral Discount: If they historically talk like this, it reduces risk
         
         stranger_penalty = (1.0 - trust_score) * 0.25
-        behavioral_discount = historical_intent_baseline * 0.25
+        behavioral_discount = historical_intent_baseline * trust_score
         
         gate_score = top_intent_score + url_score + stranger_penalty - behavioral_discount
         gate_score = max(0.0, min(gate_score, 1.0))
