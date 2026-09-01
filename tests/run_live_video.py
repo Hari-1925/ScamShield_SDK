@@ -14,7 +14,7 @@ CHUNK = 1024
 
 class LiveWebcamTest:
     def __init__(self):
-        self.shield = ScamShield(api_key="scamshield-dev-key", cloud_url="http://localhost:8000", timeout=45)
+        self.shield = ScamShield(api_key="scamshield-dev-key", cloud_url="https://scamshield-sdk.onrender.com", timeout=45)
         self.audio_frames = []
         self.latest_threat_level = 0.0
         self.latest_alert = "none"

@@ -13,7 +13,7 @@ CHUNK = 1024
 
 class LiveAudioTest:
     def __init__(self):
-        self.shield = ScamShield(api_key="scamshield-dev-key", cloud_url="http://localhost:8000", timeout=45)
+        self.shield = ScamShield(api_key="scamshield-dev-key", cloud_url="https://scamshield-sdk.onrender.com", timeout=45)
         self.audio_frames = []
         
     def audio_callback(self, in_data, frame_count, time_info, status):

@@ -1,3 +1,4 @@
+import asyncio
 from scamshield.models import StreamChunkResult, DetectionResult, AlertLevel, AudioStreamSession
 from scamshield.gate.audio_gate import AudioGate
 from scamshield.cloud.client import CloudClient
@@ -17,24 +18,21 @@ class AudioStreamClient(AudioStreamSession):
         self.final_detection = None
         self.cloud_verified_severe_threat = False
         self.transcript_history = []
+        self.event_queue = None
         
     async def connect(self):
-        pass
+        self.event_queue = asyncio.Queue()
 
     async def send_chunk(self, audio_bytes: bytes) -> StreamChunkResult:
         self.chunk_id += 1
-        
-        # Combine the last 15 seconds (5 chunks) of conversation history for semantic context
         context = " ".join(self.transcript_history[-5:])
         
-        # Run local offline gate on this 3-second chunk
         gate_res = self.audio_gate.run(audio_bytes, context_history=context)
         
         new_text = gate_res.vectors.get("transcription", "").strip()
         if new_text:
             self.transcript_history.append(new_text)
         
-        # Construct proper AudioVectorRequest payload
         audio_vectors = {
             "mfcc_mean": gate_res.vectors.get("mfcc_mean", [0.0] * 40),
             "mfcc_std": gate_res.vectors.get("mfcc_std", [0.0] * 40),
@@ -51,18 +49,18 @@ class AudioStreamClient(AudioStreamSession):
 
         self.running_score = max(self.running_score, gate_res.gate_score)
         should_alert = self.running_score >= self.threshold
+        explanation = ""
         
         if should_alert:
             self.alert_level = AlertLevel.RED if self.running_score > 0.6 else AlertLevel.ORANGE
+            explanation = "Local Edge AI suspects malicious activity."
             
-            # --- REAL-TIME CLOUD ESCALATION ---
-            if self.cloud_client and not getattr(self, '_is_escalating', False):
+            if self.cloud_client and not getattr(self, '_is_escalating', False) and not self.cloud_verified_severe_threat:
                 self._is_escalating = True
-                # Run cloud verification in background without blocking the live stream
-                import asyncio
+                
                 async def _bg_escalate():
                     try:
-                        print("\n[⚡ ESCALATING TO CLOUD VERIFICATION] Please wait for Lyzr Final Verdict...\n")
+                        print("\n[?? ESCALATING TO CLOUD VERIFICATION] Please wait for Lyzr Final Verdict...\n")
                         cloud_res = await self.cloud_client.detect(
                             CloudEndpoints.DETECT_AUDIO, 
                             audio_vectors, 
@@ -70,24 +68,45 @@ class AudioStreamClient(AudioStreamSession):
                             session_id=None
                         )
                         self.final_detection = cloud_res
+                        
+                        is_scam = False
                         if cloud_res.cloud_score is not None:
-                            # Override local score with Lyzr's definitive verdict (can lower or raise it)
                             self.running_score = cloud_res.cloud_score
                             
-                            # Update Alert Level based on definitive cloud score
                             if self.running_score >= 0.8:
                                 self.alert_level = AlertLevel.RED
                                 self.cloud_verified_severe_threat = True
+                                is_scam = True
                             elif self.running_score >= 0.6:
                                 self.alert_level = AlertLevel.ORANGE
                                 self.cloud_verified_severe_threat = False
+                                is_scam = True
                             else:
                                 self.alert_level = AlertLevel.NONE
                                 self.cloud_verified_severe_threat = False
+                                is_scam = False
                                 
-                        print(f"\n[⚡ CLOUD VERDICT RECEIVED] Threat Level adjusted to: {self.running_score}\n")
+                        print(f"\n[?? CLOUD VERDICT RECEIVED] Threat Level adjusted to: {self.running_score}\n")
+                        
+                        if self.event_queue:
+                            await self.event_queue.put({
+                                "action": "CLOUD_VERDICT",
+                                "explanation": cloud_res.explanation,
+                                "is_scam": is_scam,
+                                "score": self.running_score
+                            })
+                            
                     except Exception as e:
-                        print(f"[Cloud Escalation Failed] {e}")
+                        import traceback
+                        traceback.print_exc()
+                        print(f"[Cloud Escalation Failed] {repr(e)}")
+                        if self.event_queue:
+                            await self.event_queue.put({
+                                "action": "CLOUD_VERDICT",
+                                "explanation": f"Cloud verification failed ({repr(e)}). Local Agent flagged this as a potential scam.",
+                                "is_scam": True,
+                                "score": self.running_score
+                            })
                     finally:
                         self._is_escalating = False
                 
@@ -102,7 +121,8 @@ class AudioStreamClient(AudioStreamSession):
             should_alert=should_alert,
             transcription=transcription,
             deepfake_score=gate_res.vectors.get("acoustic_score", 0.0),
-            text_score=gate_res.vectors.get("text_score", 0.0)
+            text_score=gate_res.vectors.get("text_score", 0.0),
+            explanation=explanation
         )
 
     async def close(self) -> DetectionResult:

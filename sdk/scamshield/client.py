@@ -17,7 +17,7 @@ class ScamShield:
         api_key: str,
         cloud_url: str = "https://scamshield.onrender.com",
         gate_threshold: float = 0.35,
-        timeout: int = 10,
+        timeout: int = 180,
         model_dir: str = None
     ):
         self.api_key = api_key
@@ -99,7 +99,22 @@ class ScamShield:
                 modality="image"
             )
             
-        return await self.cloud.detect(CloudEndpoints.DETECT_IMAGE, gate_res.vectors, gate_res.gate_score, session_id)
+        try:
+            return await self.cloud.detect(CloudEndpoints.DETECT_IMAGE, gate_res.vectors, gate_res.gate_score, session_id)
+        except Exception as e:
+            return DetectionResult(
+                incident_id=None,
+                alert_level=AlertLevel.YELLOW,
+                confidence_score=gate_res.gate_score,
+                scam_type=None,
+                explanation=f"Locally assessed as suspicious. Cloud verification failed. ({str(e) or repr(e)})",
+                recommendation="Proceed with caution.",
+                gate_score=gate_res.gate_score,
+                cloud_score=None,
+                processed_locally=True,
+                threat_intel_found=False,
+                modality="image"
+            )
 
     async def scan_audio(self, audio: bytes, session_id: str = None) -> DetectionResult:
         self._ensure_models_loaded()
@@ -120,7 +135,22 @@ class ScamShield:
                 modality="audio"
             )
             
-        return await self.cloud.detect(CloudEndpoints.DETECT_AUDIO, gate_res.vectors, gate_res.gate_score, session_id)
+        try:
+            return await self.cloud.detect(CloudEndpoints.DETECT_AUDIO, gate_res.vectors, gate_res.gate_score, session_id)
+        except Exception as e:
+            return DetectionResult(
+                incident_id=None,
+                alert_level=AlertLevel.YELLOW,
+                confidence_score=gate_res.gate_score,
+                scam_type=None,
+                explanation=f"Locally assessed as suspicious. Cloud verification failed. ({str(e) or repr(e)})",
+                recommendation="Proceed with caution.",
+                gate_score=gate_res.gate_score,
+                cloud_score=None,
+                processed_locally=True,
+                threat_intel_found=False,
+                modality="audio"
+            )
 
     async def scan_video(self, video: bytes, session_id: str = None) -> DetectionResult:
         self._ensure_models_loaded()
@@ -141,7 +171,22 @@ class ScamShield:
                 modality="video"
             )
             
-        return await self.cloud.detect(CloudEndpoints.DETECT_VIDEO, gate_res.vectors, gate_res.gate_score, session_id)
+        try:
+            return await self.cloud.detect(CloudEndpoints.DETECT_VIDEO, gate_res.vectors, gate_res.gate_score, session_id)
+        except Exception as e:
+            return DetectionResult(
+                incident_id=None,
+                alert_level=AlertLevel.YELLOW,
+                confidence_score=gate_res.gate_score,
+                scam_type=None,
+                explanation=f"Locally assessed as suspicious. Cloud verification failed. ({str(e) or repr(e)})",
+                recommendation="Proceed with caution.",
+                gate_score=gate_res.gate_score,
+                cloud_score=None,
+                processed_locally=True,
+                threat_intel_found=False,
+                modality="video"
+            )
 
     async def start_audio_stream(self) -> AudioStreamSession:
         self._ensure_models_loaded()

@@ -8,10 +8,20 @@ router = APIRouter()
 
 class TextVectorRequest(BaseModel):
     embedding: List[float]
-    keyword_hits: List[str]
-    url_flags: List[str]
-    extracted_urls: List[str]
     gate_score: float
+    
+    # V2 Fields
+    intents: Optional[dict] = None
+    entities: Optional[dict] = None
+    trust_score: Optional[float] = None
+    context_mitigated: Optional[bool] = None
+    scrubbed_transcription: Optional[str] = ""
+    
+    # V1 Backward Compatibility
+    keyword_hits: List[str] = []
+    url_flags: List[str] = []
+    extracted_urls: List[str] = []
+    
     scam_category: Optional[str]
     session_id: Optional[str]
 
@@ -58,8 +68,25 @@ class VideoVectorRequest(BaseModel):
 async def process_detection(modality: str, req: BaseModel, request: Request, background_tasks: BackgroundTasks):
     app = request.app
     req_dict = req.dict()
+    
     extracted_urls = req_dict.get("extracted_urls", [])
     keyword_hits = req_dict.get("keyword_hits", [])
+    
+    # V2 Compatibility mapping
+    entities = req_dict.get("entities") or {}
+    if "urls" in entities:
+        extracted_urls.extend(entities["urls"])
+        
+    intents = req_dict.get("intents") or {}
+    if intents:
+        # If there are highly suspicious intents, treat them as keywords for threat intelligence
+        for intent, score in intents.items():
+            if score > 0.4:
+                keyword_hits.append(intent)
+                
+    # De-duplicate
+    extracted_urls = list(set(extracted_urls))
+    keyword_hits = list(set(keyword_hits))
     
     # 1. URL Check (Safe, no PII)
     url_coro = app.state.tavily.check_urls(extracted_urls)

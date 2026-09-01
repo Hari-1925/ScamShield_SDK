@@ -153,4 +153,4 @@ class LyzrService:
         return val
 
     async def health_check(self) -> bool:
-        return bool(self.api_key and not self.api_key.startswith("sk-default"))
+        return bool(self.api_key)

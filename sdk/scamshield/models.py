@@ -47,6 +47,7 @@ class StreamChunkResult(BaseModel):
     transcription: str
     deepfake_score: float
     text_score: float
+    explanation: str = ""
     n8n_triggered: bool = False
 
 class AudioStreamSession:
