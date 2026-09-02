@@ -12,7 +12,7 @@ class VideoGate:
         self.image_gate = image_gate
         self.audio_gate = audio_gate
 
-    def run(self, video_bytes: bytes, contact_id: str = "unknown") -> GateResult:
+    def run(self, video_bytes: bytes, contact_id: str = "unknown", is_saved_contact: bool = False) -> GateResult:
         # Step 1 - Write temp file
         tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
         tmp.write(video_bytes)
@@ -81,7 +81,7 @@ class VideoGate:
                 with open(audio_path, "rb") as f:
                     audio_bytes_extracted = f.read()
                 if len(audio_bytes_extracted) > 0:
-                    audio_result = self.audio_gate.run(audio_bytes_extracted, contact_id=contact_id)
+                    audio_result = self.audio_gate.run(audio_bytes_extracted, contact_id=contact_id, is_saved_contact=is_saved_contact)
 
             # Step 4 - Fuse
             # Escalate if EITHER the video frames, the audio track, OR the face jitter is malicious

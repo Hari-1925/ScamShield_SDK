@@ -90,16 +90,19 @@ async def scan_local_media(file: UploadFile = File(...), contact_id: str = Form(
 
     content = await file.read()
     mime = file.content_type or ""
+    
+    contact_upper = contact_id.upper()
+    is_saved = "BANK" in contact_upper or "SBI" in contact_upper or "HDFC" in contact_upper or "DAD" in contact_upper or "MOM" in contact_upper or "FRIEND" in contact_upper
 
     try:
         if mime.startswith("image/"):
-            gate_res = shield.image_gate.run(content)
+            gate_res = shield.image_gate.run(content, contact_id=contact_id, is_saved_contact=is_saved)
             modality = "image"
         elif mime.startswith("audio/"):
-            gate_res = shield.audio_gate.run(content, contact_id=contact_id)
+            gate_res = shield.audio_gate.run(content, contact_id=contact_id, is_saved_contact=is_saved)
             modality = "audio"
         elif mime.startswith("video/"):
-            gate_res = shield.video_gate.run(content, contact_id=contact_id)
+            gate_res = shield.video_gate.run(content, contact_id=contact_id, is_saved_contact=is_saved)
             modality = "video"
         else:
             return {"is_scam": False}

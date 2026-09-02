@@ -27,19 +27,21 @@ class AudioGate:
         self.whisper_model = WhisperModel(model_name_or_path, device="auto", compute_type="default")
         print("Audio gate loaded (DAVE Architecture)")
 
-    def run(self, audio_bytes: bytes, contact_id: str = "unknown") -> GateResult:
+    def run(self, audio_bytes: bytes, contact_id: str = "unknown", is_saved_contact: bool = False) -> GateResult:
         import librosa
         import warnings
+        import tempfile
+        import numpy as np
+        import os
         
         # Suppress PySoundFile and audioread fallback warnings caused by WebM files
         
-        with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             tmp.write(audio_bytes)
             tmp_path = tmp.name
             
         try:
             try:
-                import warnings
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
                     audio, sr = librosa.load(tmp_path, sr=16000, mono=True)
@@ -104,9 +106,7 @@ class AudioGate:
             text_vectors = {}
             if transcription:
                 # Pass to CAHS-Gate V2 with contact_id for Historical Context RAG!
-                # Assuming is_saved_contact based on whether it's not "unknown" for this demo
-                is_saved = contact_id != "unknown"
-                text_result = self.text_gate.run(transcription, contact_id=contact_id, is_saved_contact=is_saved, sender="them")
+                text_result = self.text_gate.run(transcription, contact_id=contact_id, is_saved_contact=is_saved_contact, sender="them")
                 text_score = text_result.gate_score
                 text_vectors = text_result.vectors
 

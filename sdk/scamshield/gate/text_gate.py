@@ -18,7 +18,8 @@ class TextGate:
             "send me the money", "transfer funds to this account", "pay the customs fee", 
             "can you lend me cash", "paytm me", "upi transfer", "pay the registration fee",
             "send money for tickets", "i am stranded need cash", "invest now", 
-            "double your money", "guaranteed returns", "job registration fee"
+            "double your money", "guaranteed returns", "job registration fee",
+            "pickpocketed", "send me money to return home", "lost my phone need money"
         ],
         "info_extraction": [
             "share the otp", "what is your password", "tell me the verification code", 
