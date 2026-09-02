@@ -76,6 +76,11 @@ class AudioGate:
                 acoustic_score += 0.35
                 acoustic_tags.append("Dynamics: Unnatural consonant punchiness (Potential Voice Clone)")
                 
+            # Rule 3: Unnaturally low variance (Modern TTS lacks human hesitation/breathing)
+            if mfcc_std_mean < 8.0:
+                acoustic_score += 0.40
+                acoustic_tags.append("Timbre: Unnaturally consistent intonation (Potential AI Voice Clone)")
+                  
             acoustic_score = min(acoustic_score, 1.0)
 
             # 3. Path 2: Semantic Intent (Fast-Whisper + CAHS-Gate V2)

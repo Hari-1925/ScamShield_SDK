@@ -99,7 +99,7 @@ async def scan_local_media(file: UploadFile = File(...), contact_id: str = Form(
             gate_res = shield.audio_gate.run(content, contact_id=contact_id)
             modality = "audio"
         elif mime.startswith("video/"):
-            gate_res = shield.video_gate.run(content)
+            gate_res = shield.video_gate.run(content, contact_id=contact_id)
             modality = "video"
         else:
             return {"is_scam": False}

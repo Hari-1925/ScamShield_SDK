@@ -39,32 +39,32 @@ res_silence = audio_gate.run(buf.getvalue(), contact_id="test_silence")
 print_result("Silence Edge Case", res_silence)
 
 # 2. TTS Voice Clone
-print("\n[Running Test 2: TTS / Voice Clone (tts.mp3)]")
-tts_path = os.path.join(tests_dir, "tts.mp3")
+print("\n[Running Test 2: TTS / Voice Clone (Audio/tts.mp3)]")
+tts_path = os.path.join(tests_dir, "Audio", "tts.mp3")
 if os.path.exists(tts_path):
     with open(tts_path, "rb") as f:
-        res_tts = audio_gate.run(f.read(), contact_id="test_tts")
+        res_tts = audio_gate.run(f.read())
     print_result("TTS / Voice Clone", res_tts)
 else:
     print("Skipped: tts.mp3 not found")
 
 # 3. Real Human Scam
-print("\n[Running Test 3: IRL Human Scam (irl_scam.mp3)]")
-scam_path = os.path.join(tests_dir, "irl_scam.mp3")
-if os.path.exists(scam_path):
-    with open(scam_path, "rb") as f:
-        res_scam = audio_gate.run(f.read(), contact_id="test_human_scam")
-    print_result("Human Scam (Semantic Trigger)", res_scam)
+print("\n[Running Test 3: IRL Human Scam (Audio/irl_scam.mp3)]")
+irl_path = os.path.join(tests_dir, "Audio", "irl_scam.mp3")
+if os.path.exists(irl_path):
+    with open(irl_path, "rb") as f:
+        res_irl = audio_gate.run(f.read())
+    print_result("IRL Human Scam", res_irl)
 else:
     print("Skipped: irl_scam.mp3 not found")
 
-# 4. Normal Safe Conversation
-print("\n[Running Test 4: Normal Conversation (normal.mp3)]")
-normal_path = os.path.join(tests_dir, "normal.mp3")
-if os.path.exists(normal_path):
-    with open(normal_path, "rb") as f:
-        res_norm = audio_gate.run(f.read(), contact_id="test_safe")
-    print_result("Normal Human Conversation", res_norm)
+# 4. Normal Conversation
+print("\n[Running Test 4: Normal Conversation (Audio/normal.mp3)]")
+norm_path = os.path.join(tests_dir, "Audio", "normal.mp3")
+if os.path.exists(norm_path):
+    with open(norm_path, "rb") as f:
+        res_norm = audio_gate.run(f.read())
+    print_result("Normal Conversation", res_norm)
 else:
     print("Skipped: normal.mp3 not found")
 

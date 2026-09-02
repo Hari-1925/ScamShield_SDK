@@ -29,9 +29,20 @@ class VideoGate:
             frame_scores = []
             frame_count = 0
             
+            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+            face_centers = []
+            
             while len(frame_scores) < 10:
                 ret, frame = cap.read()
                 if not ret: break
+
+                # Deepfake Face Jitter Tracking (Check 5 times a second)
+                if frame_count % max(1, int(fps/5)) == 0:
+                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    faces = face_cascade.detectMultiScale(gray, 1.1, 4)
+                    if len(faces) > 0:
+                        x, y, w, h = faces[0]
+                        face_centers.append((x + w/2, y + h/2))
 
                 # Route keyframes to ImageGate
                 if frame_count % interval == 0:
@@ -45,10 +56,14 @@ class VideoGate:
                 frame_count += 1
             cap.release()
             
-            # Real Deepfake visual detection on Edge requires a dedicated CNN (like MobileNet-FAS).
-            # For now, we rely on the DAVE Audio engine (which catches 99% of deepfake voice clones) 
-            # and ImageGate's FFT noise analysis for synthetic frame generation.
             face_swap_score = 0.0
+            if len(face_centers) > 3:
+                # Calculate variance of face movement (jitter) - temporal inconsistency in deepfakes
+                dx = [abs(face_centers[i][0] - face_centers[i-1][0]) for i in range(1, len(face_centers))]
+                dy = [abs(face_centers[i][1] - face_centers[i-1][1]) for i in range(1, len(face_centers))]
+                mean_jitter = np.mean(dx) + np.mean(dy)
+                if mean_jitter > 15.0: # High threshold for unnatural jumping
+                    face_swap_score = 0.40
 
             # Step 3 - Extract audio (ffmpeg) -> DAVE Audio Gate
             try:
