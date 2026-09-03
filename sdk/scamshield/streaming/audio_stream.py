@@ -59,18 +59,23 @@ class AudioStreamClient(AudioStreamSession):
             if not getattr(self, '_is_escalating', False) and not self.cloud_verified_severe_threat:
                 self._is_escalating = True
                 
+                # GUARANTEED ZERO-LATENCY UI UPDATE
+                # We push this to the queue *before* we even spawn the LLM task, ensuring the React UI
+                # gets the Red Banner immediately before PyTorch has a chance to hijack the CPU GIL.
+                if self.event_queue:
+                    await self.event_queue.put({
+                        "action": "CLOUD_VERDICT",
+                        "explanation": "Local AI Explainer: Analyzing threat details...",
+                        "is_scam": True,
+                        "score": self.running_score
+                    })
+                
                 async def _bg_escalate():
                     try:
                         print("\n[?? LOCAL ESCALATION] Generating Local LLM Explanation...\n")
                         
-                        # INSTANT UI UPDATE: Trigger the Red Banner immediately with zero latency!
-                        if self.event_queue:
-                            await self.event_queue.put({
-                                "action": "CLOUD_VERDICT",
-                                "explanation": "Local AI Explainer: Analyzing threat details...",
-                                "is_scam": True,
-                                "score": self.running_score
-                            })
+                        # Give the event loop a generous 200ms to flush the websocket buffer to React
+                        await asyncio.sleep(0.2)
                         
                         # BACKGROUND GENERATION: Let the LLM take a few seconds to write the detailed text
                         loop = asyncio.get_event_loop()
