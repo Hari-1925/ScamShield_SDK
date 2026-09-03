@@ -15,7 +15,7 @@ class AudioStreamClient(AudioStreamSession):
         self.alert_level = AlertLevel.NONE
         self.is_active = True
         self.chunk_id = 0
-        self.threshold = 0.30
+        self.threshold = 0.55
         self.final_detection = None
         self.cloud_verified_severe_threat = False
         self.transcript_history = []
@@ -56,58 +56,51 @@ class AudioStreamClient(AudioStreamSession):
             self.alert_level = AlertLevel.RED if self.running_score > 0.6 else AlertLevel.ORANGE
             explanation = "Local Edge AI suspects malicious activity."
             
-            if self.cloud_client and not getattr(self, '_is_escalating', False) and not self.cloud_verified_severe_threat:
+            if not getattr(self, '_is_escalating', False) and not self.cloud_verified_severe_threat:
                 self._is_escalating = True
                 
                 async def _bg_escalate():
                     try:
-                        print("\n[?? ESCALATING TO CLOUD VERIFICATION] Please wait for Lyzr Final Verdict...\n")
-                        cloud_res = await self.cloud_client.detect(
-                            CloudEndpoints.DETECT_AUDIO, 
-                            audio_vectors, 
-                            self.running_score, 
-                            session_id=None
-                        )
-                        self.final_detection = cloud_res
+                        print("\n[?? LOCAL ESCALATION] Generating Local LLM Explanation...\n")
                         
-                        is_scam = False
-                        if cloud_res.cloud_score is not None:
-                            self.running_score = cloud_res.cloud_score
-                            
-                            if self.running_score >= 0.8:
-                                self.alert_level = AlertLevel.RED
-                                self.cloud_verified_severe_threat = True
-                                is_scam = True
-                            elif self.running_score >= 0.6:
-                                self.alert_level = AlertLevel.ORANGE
-                                self.cloud_verified_severe_threat = False
-                                is_scam = True
-                            else:
-                                self.alert_level = AlertLevel.NONE
-                                self.cloud_verified_severe_threat = False
-                                is_scam = False
-                                
-                        print(f"\n[?? CLOUD VERDICT RECEIVED] Threat Level adjusted to: {self.running_score}\n")
-                        
+                        # INSTANT UI UPDATE: Trigger the Red Banner immediately with zero latency!
                         if self.event_queue:
                             await self.event_queue.put({
                                 "action": "CLOUD_VERDICT",
-                                "explanation": cloud_res.explanation,
-                                "is_scam": is_scam,
+                                "explanation": "Local AI Explainer: Analyzing threat details...",
+                                "is_scam": True,
                                 "score": self.running_score
                             })
+                        
+                        # BACKGROUND GENERATION: Let the LLM take a few seconds to write the detailed text
+                        loop = asyncio.get_event_loop()
+                        try:
+                            from scamshield.explainers.local_llm import explainer_instance
+                            explanation_text = await loop.run_in_executor(
+                                None, 
+                                explainer_instance.explain, 
+                                audio_vectors, 
+                                self.running_score
+                            )
+                        except Exception as e:
+                            explanation_text = f"Local AI Explainer: Detected malicious activity (Score: {self.running_score:.2f})"
+                            
+                        # ASYNC UI UPDATE: Replace the "Analyzing" text with the actual LLM generated text seamlessly
+                        if self.event_queue:
+                            await self.event_queue.put({
+                                "action": "CLOUD_VERDICT",
+                                "explanation": explanation_text,
+                                "is_scam": True,
+                                "score": self.running_score
+                            })
+                        
+                        self.cloud_verified_severe_threat = True
+                        print("\n[?? LOCAL VERDICT GENERATED]\n")
                             
                     except Exception as e:
                         import traceback
                         traceback.print_exc()
-                        print(f"[Cloud Escalation Failed] {repr(e)}")
-                        if self.event_queue:
-                            await self.event_queue.put({
-                                "action": "CLOUD_VERDICT",
-                                "explanation": f"Cloud verification failed ({repr(e)}). Local Agent flagged this as a potential scam.",
-                                "is_scam": True,
-                                "score": self.running_score
-                            })
+                        print(f"[Local Escalation Failed] {repr(e)}")
                     finally:
                         self._is_escalating = False
                 

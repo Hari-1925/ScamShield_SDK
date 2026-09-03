@@ -217,21 +217,23 @@ function App() {
     };
 
       ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.action === "LOCAL_WARNING") {
-        setCallAlert(prev => {
-          if (prev && prev.type === 'cloud') return prev;
-          return { type: 'local', message: data.reason };
-        });
-      } else if (data.action === "CLOUD_VERDICT") {
-        if (data.is_scam) {
-          setCallAlert({ type: 'cloud', message: data.explanation });
-          setTerminateCountdown(5);
-        } else {
-          setCallAlert({ type: 'safe', message: 'Cloud verified this call is safe.' });
-          setTimeout(() => setCallAlert(null), 3000);
+        const data = JSON.parse(event.data);
+        if (data.action === "LOCAL_WARNING") {
+          setCallAlert(prev => {
+            if (prev && prev.type === 'cloud') return prev;
+            return { type: 'local', message: data.reason };
+          });
+        } else if (data.action === "CLOUD_VERDICT") {
+          console.log("REACT UI: Received CLOUD_VERDICT from Edge AI!", data);
+          if (data.is_scam) {
+            console.log("REACT UI: Setting Red Banner and 5-second countdown...");
+            setCallAlert({ type: 'cloud', message: data.explanation });
+            setTerminateCountdown(5);
+          } else {
+            setCallAlert({ type: 'safe', message: 'Cloud verified this call is safe.' });
+            setTimeout(() => setCallAlert(null), 3000);
+          }
         }
-      }
     };
   };
 
@@ -566,10 +568,10 @@ function App() {
                     <div className="bg-red-50 border-l-4 border-red-600 text-red-700 p-5 shadow-2xl rounded">
                       <div className="flex gap-3 items-start mb-3">
                         <AlertTriangle className="w-6 h-6 flex-shrink-0 mt-1" />
-                        <div className="flex-1">
-                          <h3 className="font-bold text-lg mb-1">Scam Alert (Cloud Verified)</h3>
-                          <p className="text-sm leading-relaxed mb-3">{callAlert.message}</p>
-                        </div>
+                          <div className="flex-1">
+                            <h3 className="font-bold text-lg mb-1">Scam Alert (Edge AI Verified)</h3>
+                            <p className="text-sm leading-relaxed mb-3">{callAlert.message}</p>
+                          </div>
                       </div>
                       
                       {terminateCountdown !== null && (

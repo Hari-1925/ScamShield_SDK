@@ -7,6 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, Any
 
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "sdk")))
 from scamshield import ScamShield
 from scamshield.cloud.endpoints import CloudEndpoints
@@ -23,7 +27,8 @@ app.add_middleware(
 
 shield = ScamShield(
     api_key="scamshield-dev-key-2026",
-    cloud_url="https://scamshield-sdk.onrender.com"
+    cloud_url="https://scamshield-sdk.onrender.com",
+    model_dir=os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "models"))
 )
 
 models_loaded = False
@@ -34,6 +39,16 @@ async def startup_event():
     print("Warming up ScamShield AI models on Edge...")
     try:
         await shield.scan_text("warmup")
+        
+        # Warm up the Local LLM Explainer (this will trigger the 1-time download if missing)
+        try:
+            from scamshield.explainers.local_llm import explainer_instance
+            import asyncio
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, explainer_instance._load)
+        except Exception as e:
+            print(f"Failed to load Local Explainer: {e}")
+            
         models_loaded = True
         print("AI Models successfully loaded and ready.")
     except Exception as e:
@@ -105,7 +120,15 @@ async def scan_local_media(file: UploadFile = File(...), contact_id: str = Form(
             gate_res = shield.video_gate.run(content, contact_id=contact_id, is_saved_contact=is_saved)
             modality = "video"
         else:
+            print(f"Unknown media type: {mime}")
             return {"is_scam": False}
+
+        print(f"\n--- LOCAL SCAN RESULT ({modality.upper()}) ---")
+        print(f"Contact ID: {contact_id} | Saved: {is_saved}")
+        print(f"Gate Score: {gate_res.gate_score} | Passed (is_scam): {gate_res.passed_gate}")
+        print(f"Reason: {gate_res.gate_reason}")
+        print(f"Vectors: {gate_res.vectors}")
+        print("---------------------------------\n")
 
         return {
             "is_scam": gate_res.passed_gate,
@@ -130,8 +153,34 @@ async def scan_cloud(req: CloudScanRequest):
         return {"alert_level": "green", "explanation": "Unknown modality"}
 
     try:
-        res = await shield.cloud.detect(ep, req.vectors, req.gate_score)
-        return res.model_dump() if hasattr(res, 'model_dump') else res.dict()
+        from scamshield.explainers.local_llm import explainer_instance
+        import asyncio
+        loop = asyncio.get_event_loop()
+        
+        print("\n[Edge AI] Escalating to Local LLM Explainer instead of Cloud...")
+        explanation_text = await loop.run_in_executor(
+            None, 
+            explainer_instance.explain, 
+            req.vectors, 
+            req.gate_score
+        )
+        
+        # Determine alert level based on score (simulating cloud response)
+        alert_level = "red" if req.gate_score >= 0.8 else "orange" if req.gate_score >= 0.6 else "yellow"
+        
+        return {
+            "incident_id": "local-edge-incident",
+            "alert_level": alert_level,
+            "confidence_score": req.gate_score,
+            "scam_type": "suspicious_activity",
+            "explanation": explanation_text,
+            "recommendation": "Be extremely cautious. This was flagged locally.",
+            "gate_score": req.gate_score,
+            "cloud_score": req.gate_score,
+            "processed_locally": True,
+            "threat_intel_found": False,
+            "modality": req.modality
+        }
     except Exception as e:
         traceback.print_exc()
         return {
@@ -145,13 +194,18 @@ async def scan_call_stream(websocket: WebSocket, contact_id: str = "unknown"):
     # Pass contact_id to start_audio_stream (which we'll update in SDK)
     session = await shield.start_audio_stream(contact_id=contact_id)
     
+    ws_lock = asyncio.Lock()
+    
     async def listen_cloud_events():
         while session.is_active:
             if hasattr(session, 'event_queue') and session.event_queue:
                 event = await session.event_queue.get()
                 try:
-                    await websocket.send_json(event)
-                except Exception:
+                    async with ws_lock:
+                        await websocket.send_json(event)
+                    print(f"Sent event to UI: {event['action']}")
+                except Exception as e:
+                    print(f"Failed to send event to UI: {e}")
                     break
             else:
                 await asyncio.sleep(0.5)
@@ -164,13 +218,21 @@ async def scan_call_stream(websocket: WebSocket, contact_id: str = "unknown"):
             chunk_res = await session.send_chunk(data)
             
             if chunk_res.should_alert:
-                await websocket.send_json({
-                    "action": "LOCAL_WARNING",
-                    "reason": "Edge AI suspects this is a scam. Verifying with Cloud...",
-                    "score": chunk_res.running_score
-                })
+                async with ws_lock:
+                    try:
+                        await websocket.send_json({
+                            "action": "LOCAL_WARNING",
+                            "reason": "Edge AI suspects this is a scam. Verifying with Cloud...",
+                            "score": chunk_res.running_score
+                        })
+                    except Exception:
+                        pass
             else:
-                await websocket.send_json({"action": "SAFE", "score": chunk_res.running_score})
+                async with ws_lock:
+                    try:
+                        await websocket.send_json({"action": "SAFE", "score": chunk_res.running_score})
+                    except Exception:
+                        pass
                 
     except WebSocketDisconnect:
         print("WebRTC Stream Scanner disconnected.")

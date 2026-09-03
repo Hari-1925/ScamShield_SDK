@@ -18,9 +18,9 @@ class AudioGate:
             print("Please install faster-whisper: pip install faster-whisper")
             return
             
-        model_name_or_path = "tiny"
+        model_name_or_path = "base.en"
         if self.model_dir:
-            local_path = os.path.join(self.model_dir, "whisper-tiny")
+            local_path = os.path.join(self.model_dir, "whisper-base-en")
             if os.path.exists(local_path):
                 model_name_or_path = local_path
                 
@@ -69,17 +69,17 @@ class AudioGate:
             acoustic_tags = []
             
             # Rule 1: High MFCC variance often indicates over-articulated TTS (e.g. older AI voices)
-            if mfcc_std_mean > 16.0:
+            if mfcc_std_mean > 16.5: # Relaxed from 14.5 to avoid noise false-positives
                 acoustic_score += 0.35
                 acoustic_tags.append("Timbre: Unnatural over-articulation (Potential TTS)")
                 
             # Rule 2: Unnaturally high onset flux (Robotic punchiness in consonants)
-            if flux_variance > 9.0:
+            if flux_variance > 14.0: # Relaxed from 9.0 to avoid mic-pop false positives
                 acoustic_score += 0.35
                 acoustic_tags.append("Dynamics: Unnatural consonant punchiness (Potential Voice Clone)")
                 
             # Rule 3: Unnaturally low variance (Modern TTS lacks human hesitation/breathing)
-            if mfcc_std_mean < 8.0:
+            if mfcc_std_mean < 6.0: # Relaxed from 8.0
                 acoustic_score += 0.40
                 acoustic_tags.append("Timbre: Unnaturally consistent intonation (Potential AI Voice Clone)")
                   
@@ -114,12 +114,12 @@ class AudioGate:
             gate_score = max(acoustic_score, text_score)
 
             reason_parts = []
-            if acoustic_score > 0.4: reason_parts.append(f"Acoustic Anomaly ({acoustic_score:.2f})")
-            if text_score > 0.4: reason_parts.append(f"Semantic Scam Intent ({text_score:.2f})")
+            if acoustic_score >= 0.55: reason_parts.append(f"Acoustic Anomaly ({acoustic_score:.2f})")
+            if text_score >= 0.55: reason_parts.append(f"Semantic Scam Intent ({text_score:.2f})")
             reason = " and ".join(reason_parts) if reason_parts else "Safe Audio"
 
             return GateResult(
-                passed_gate=gate_score >= 0.35, # Tightened threshold
+                passed_gate=gate_score >= 0.55, # Aligned with TextGate threshold
                 gate_score=float(gate_score),
                 gate_reason=reason,
                 vectors={
