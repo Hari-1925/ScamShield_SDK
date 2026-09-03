@@ -18,10 +18,13 @@ class ImageGate:
         self.face_cascade = cv2.CascadeClassifier(cascade_path)
         print("Image gate loaded")
 
-    def run(self, image_bytes: bytes, skip_ocr: bool = False, contact_id: str = "unknown", is_video_frame: bool = False) -> GateResult:
+    def run(self, image_bytes: bytes, skip_ocr: bool = False, contact_id: str = "unknown", is_video_frame: bool = False, is_saved_contact: bool = False) -> GateResult:
+        import numpy as np
+        import cv2
+        import io
+        from PIL import Image, ImageChops, ImageEnhance
         import pytesseract
-        
-        # Step 1 - Load & Resize (MASSIVE SPEEDUP)
+
         try:
             img = Image.open(io.BytesIO(image_bytes))
             img_rgb = img.convert("RGB")
@@ -33,7 +36,21 @@ class ImageGate:
         
         # Max dimension 1024 to speed up Tesseract and ELA by 10x
         if max(img_rgb.size) > 1024:
-            img_rgb.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+            img_rgb.thumbnail((1024, 1024))
+            
+        ocr_text = ""
+        ocr_score = 0.0
+        ocr_result = None
+        
+        if not skip_ocr:
+            try:
+                ocr_text = pytesseract.image_to_string(img_rgb).strip()
+                if ocr_text:
+                    # Pass the contact_id for Historical RAG Trust checks on OCR text!
+                    ocr_result = self.text_gate.run(ocr_text, contact_id=contact_id, is_saved_contact=is_saved_contact)
+                    ocr_score = ocr_result.gate_score
+            except Exception as e:
+                print(f"OCR failed (Tesseract may not be installed): {e}")
 
         # Step 2 - ELA (Error Level Analysis for Forgery)
         ela_score = 0.0

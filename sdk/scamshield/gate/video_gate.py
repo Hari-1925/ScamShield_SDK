@@ -49,7 +49,7 @@ class VideoGate:
                     _, buf = cv2.imencode(".jpg", frame)
                     # Only run OCR on the VERY FIRST extracted frame to save massive time
                     do_skip_ocr = len(frame_scores) > 0
-                    result = self.image_gate.run(buf.tobytes(), skip_ocr=do_skip_ocr, contact_id=contact_id, is_video_frame=True)
+                    result = self.image_gate.run(buf.tobytes(), skip_ocr=do_skip_ocr, contact_id=contact_id, is_video_frame=True, is_saved_contact=is_saved_contact)
                     last_frame_result = result
                     frame_scores.append(result.gate_score)
                     
