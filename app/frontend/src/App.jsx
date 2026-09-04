@@ -45,9 +45,12 @@ function App() {
   const mediaRecorderRef = useRef();
   const fileInputRef = useRef();
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
   };
 
   useEffect(() => {
@@ -466,12 +469,12 @@ function App() {
   }
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-[#e0f7e9] via-[#a8e6cf] to-[#56c596] font-sans text-gray-100 overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-gray-950 font-sans text-gray-100">
       {/* BACKGROUND EFFECTS */}
       <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-green-600/20 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none" />
 
-      <div className="flex w-full h-full max-w-[1600px] mx-auto overflow-hidden bg-black/40 backdrop-blur-xl border border-white/5 shadow-2xl relative z-10">
+      <div className="flex w-full h-full max-w-[1600px] mx-auto bg-black/40 overflow-hidden backdrop-blur-xl border border-white/5 shadow-2xl relative z-10">
         
         {/* LEFT PANE */}
         <div className="w-full md:w-[300px] flex flex-col bg-gray-900/70 border-r border-white/10 backdrop-blur-md relative z-20">
@@ -530,7 +533,7 @@ function App() {
         </div>
 
         {/* RIGHT PANE */}
-        <div className="hidden md:flex flex-1 flex-col bg-gray-900/70 relative">
+        <div className="hidden md:flex flex-1 flex-col min-h-0 bg-gray-900/70 overflow-hidden relative">
           
           {/* TOP SCAM ALERT OVERLAY (Z-50) */}
           {callAlert && (
@@ -605,7 +608,7 @@ function App() {
               </div>
 
               {/* Chat Messages */}
-              <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4 z-0 relative">
+              <div ref={messagesContainerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-6 flex flex-col gap-4 z-0 relative bg-gray-900/70">
                 <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '20px 20px'}}></div>
 
                 {messages.map((m, i) => {
@@ -617,7 +620,7 @@ function App() {
                     <div key={i} className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-2 relative z-10 animate-in slide-in-from-bottom-2 fade-in duration-300`}>
                       <div className={`relative max-w-[75%] rounded-2xl text-[15px] leading-relaxed flex flex-col shadow-xl ${isMe ? 'bg-gradient-to-r from-green-500 to-green-600 text-white rounded-br-sm' : 'bg-[#2a2a2e] text-gray-200 rounded-bl-sm border border-white/5'}`}>
                         
-                        <div className="p-3.5 pb-7">
+                        <div className="p-3.5">
                             {!isMe && <div className="text-[11px] font-bold text-green-300 mb-1.5 px-1 uppercase tracking-wider">{m.user}</div>}
                             
                             <div className="px-1">
@@ -664,7 +667,7 @@ function App() {
               </div>
 
               {/* Chat Input */}
-              <div className="bg-white/5 backdrop-blur-xl p-4 flex items-center gap-4 z-10 border-t border-white/10">
+              <div className="h-16 bg-black/5 backdrop-blur-xl flex items-center gap-4 z-10 border-t border-white/10">
                 <button className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors text-gray-400 hover:text-green-400">
                   <Smile className="w-6 h-6" />
                 </button>
@@ -685,6 +688,7 @@ function App() {
                   <button onClick={sendMessage} disabled={isScanningMedia || !messageInput.trim()} className="w-10 h-10 bg-green-600 hover:bg-green-500 rounded-full flex items-center justify-center transition-all disabled:opacity-50 disabled:bg-gray-800 shadow-[0_0_15px_rgba(34,197,94,0.4)]">
                     <Send className="w-4 h-4 text-white ml-1" />
                   </button>
+                <input type="file" ref={fileInputRef} style={{position: 'absolute', left: '-9999px'}} onChange={handleFileUpload} disabled={isScanningMedia} />
                 </div>
                 
                 {!messageInput.trim() && (
