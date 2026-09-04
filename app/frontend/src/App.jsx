@@ -536,6 +536,52 @@ function App() {
         {/* RIGHT PANE */}
         <div className="hidden md:flex flex-1 flex-col relative bg-[#efeae2]">
           
+          {/* Top Scam Alert Overlay for Calls */}
+          {callAlert && (
+            <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50 w-[90%] max-w-2xl">
+              {callAlert.type === 'local' ? (
+                <div className="bg-yellow-50 border-l-4 border-yellow-500 text-yellow-700 p-4 shadow-xl rounded flex items-center justify-between animate-pulse">
+                  <div className="flex gap-3 items-center">
+                    <Activity className="w-6 h-6 flex-shrink-0" />
+                    <p className="font-medium text-sm leading-snug">{callAlert.message}</p>
+                  </div>
+                </div>
+              ) : callAlert.type === 'cloud' ? (
+                <div className="bg-red-50 border-l-4 border-red-600 text-red-700 p-5 shadow-2xl rounded">
+                  <div className="flex gap-3 items-start mb-3">
+                    <AlertTriangle className="w-6 h-6 flex-shrink-0 mt-1" />
+                      <div className="flex-1">
+                        <h3 className="font-bold text-lg mb-1">Scam Alert (Edge AI Verified)</h3>
+                        <p className="text-sm leading-relaxed mb-3">{callAlert.message}</p>
+                      </div>
+                  </div>
+                  
+                  {terminateCountdown !== null && (
+                    <div className="bg-red-100 p-3 rounded-lg flex items-center justify-between border border-red-200">
+                      <div className="font-semibold flex items-center gap-2">
+                        <PhoneOff className="w-4 h-4" /> 
+                        Call will auto-terminate in <span className="text-xl mx-1">{terminateCountdown}</span> seconds
+                      </div>
+                      <button 
+                        onClick={() => setTerminateCountdown(null)} 
+                        className="bg-white text-red-600 font-bold px-4 py-2 rounded hover:bg-gray-50 transition shadow-sm text-sm border border-red-300"
+                      >
+                        Ignore & Keep Call Alive
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-green-50 border-l-4 border-green-500 text-green-700 p-4 shadow-xl rounded flex items-center justify-between">
+                  <div className="flex gap-3 items-center">
+                    <ShieldCheck className="w-6 h-6 flex-shrink-0" />
+                    <p className="font-medium text-sm leading-snug">{callAlert.message}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {activeChat ? (
             <>
               {/* Chat Header */}
@@ -553,52 +599,6 @@ function App() {
                   <Search className="w-5 h-5 ml-2" />
                 </div>
               </div>
-
-              {/* Top Scam Alert Overlay for Calls */}
-              {callAlert && (
-                <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50 w-[90%] max-w-2xl">
-                  {callAlert.type === 'local' ? (
-                    <div className="bg-yellow-50 border-l-4 border-yellow-500 text-yellow-700 p-4 shadow-xl rounded flex items-center justify-between animate-pulse">
-                      <div className="flex gap-3 items-center">
-                        <Activity className="w-6 h-6 flex-shrink-0" />
-                        <p className="font-medium text-sm leading-snug">{callAlert.message}</p>
-                      </div>
-                    </div>
-                  ) : callAlert.type === 'cloud' ? (
-                    <div className="bg-red-50 border-l-4 border-red-600 text-red-700 p-5 shadow-2xl rounded">
-                      <div className="flex gap-3 items-start mb-3">
-                        <AlertTriangle className="w-6 h-6 flex-shrink-0 mt-1" />
-                          <div className="flex-1">
-                            <h3 className="font-bold text-lg mb-1">Scam Alert (Edge AI Verified)</h3>
-                            <p className="text-sm leading-relaxed mb-3">{callAlert.message}</p>
-                          </div>
-                      </div>
-                      
-                      {terminateCountdown !== null && (
-                        <div className="bg-red-100 p-3 rounded-lg flex items-center justify-between border border-red-200">
-                          <div className="font-semibold flex items-center gap-2">
-                            <PhoneOff className="w-4 h-4" /> 
-                            Call will auto-terminate in <span className="text-xl mx-1">{terminateCountdown}</span> seconds
-                          </div>
-                          <button 
-                            onClick={() => setTerminateCountdown(null)} 
-                            className="bg-white text-red-600 font-bold px-4 py-2 rounded hover:bg-gray-50 transition shadow-sm text-sm border border-red-300"
-                          >
-                            Ignore & Keep Call Alive
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="bg-green-50 border-l-4 border-green-500 text-green-700 p-4 shadow-xl rounded flex items-center justify-between">
-                      <div className="flex gap-3 items-center">
-                        <ShieldCheck className="w-6 h-6 flex-shrink-0" />
-                        <p className="font-medium text-sm leading-snug">{callAlert.message}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
               
               {isScanningMedia && (
                 <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50 bg-blue-50 border-l-4 border-blue-500 text-blue-700 p-3 shadow-lg rounded flex items-center gap-3">

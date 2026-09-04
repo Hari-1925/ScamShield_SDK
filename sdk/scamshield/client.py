@@ -8,6 +8,7 @@ from scamshield.gate.text_gate import TextGate
 from scamshield.gate.audio_gate import AudioGate
 from scamshield.gate.image_gate import ImageGate
 from scamshield.gate.video_gate import VideoGate
+from scamshield.gate.c2pa_gate import C2PAGate
 from scamshield.cloud.client import CloudClient
 from scamshield.cloud.endpoints import CloudEndpoints
 
@@ -28,6 +29,7 @@ class ScamShield:
         self.cloud = CloudClient(api_key, cloud_url, timeout)
 
         # Initialize local gates
+        self.c2pa_gate = C2PAGate()
         self.text_gate = TextGate(model_dir=self.model_dir)
         self.audio_gate = AudioGate(self.text_gate, model_dir=self.model_dir)
         self.image_gate = ImageGate(self.text_gate)
@@ -188,7 +190,7 @@ class ScamShield:
                 modality="video"
             )
 
-    async def start_audio_stream(self, contact_id: str = "unknown") -> AudioStreamSession:
+    async def start_audio_stream(self, contact_id: str = "unknown", threshold: float = 0.55) -> AudioStreamSession:
         self._ensure_models_loaded()
         from scamshield.streaming.audio_stream import AudioStreamClient
         client = AudioStreamClient(
@@ -196,7 +198,8 @@ class ScamShield:
             api_key=self.api_key,
             audio_gate=self.audio_gate,
             cloud_client=self.cloud,
-            contact_id=contact_id
+            contact_id=contact_id,
+            threshold=threshold
         )
         await client.connect()
         return client

@@ -1,21 +1,23 @@
 import asyncio
 from scamshield.models import StreamChunkResult, DetectionResult, AlertLevel, AudioStreamSession
 from scamshield.gate.audio_gate import AudioGate
+from scamshield.gate.c2pa_gate import C2PAGate
 from scamshield.cloud.client import CloudClient
 from scamshield.cloud.endpoints import CloudEndpoints
 
 class AudioStreamClient(AudioStreamSession):
-    def __init__(self, ws_url: str, api_key: str, audio_gate: AudioGate, cloud_client: CloudClient = None, contact_id: str = "unknown"):
+    def __init__(self, ws_url: str, api_key: str, audio_gate: AudioGate, cloud_client: CloudClient = None, contact_id: str = "unknown", threshold: float = 0.55):
         self.ws_url = ws_url
         self.api_key = api_key
         self.audio_gate = audio_gate
+        self.c2pa_gate = C2PAGate()
         self.cloud_client = cloud_client
         self.contact_id = contact_id
         self.running_score = 0.0
         self.alert_level = AlertLevel.NONE
         self.is_active = True
         self.chunk_id = 0
-        self.threshold = 0.55
+        self.threshold = threshold
         self.final_detection = None
         self.cloud_verified_severe_threat = False
         self.transcript_history = []
@@ -27,8 +29,39 @@ class AudioStreamClient(AudioStreamSession):
     async def send_chunk(self, audio_bytes: bytes) -> StreamChunkResult:
         self.chunk_id += 1
         
+        # 1. Zero-Latency C2PA Pre-Flight Check
+        c2pa_res = self.c2pa_gate.run(audio_bytes)
+        has_c2pa_ai = not c2pa_res.passed_gate
+            
         # AudioGate V2 handles context history internally via sqlite, so we pass contact_id
         gate_res = self.audio_gate.run(audio_bytes, contact_id=self.contact_id)
+        
+        # 3. Fuse C2PA with Semantic Intent
+        if has_c2pa_ai:
+            gate_res.vectors.update(c2pa_res.vectors)
+            # Only trigger Red Alert if semantic intent is suspicious, otherwise just log it
+            if gate_res.gate_score > 0.25:
+                gate_res.gate_score = min(1.0, max(gate_res.gate_score + 0.5, 0.95))
+                gate_res.gate_reason = f"Confirmed AI-Generated Media ({c2pa_res.vectors.get('c2pa_tool')}). Malicious intent detected: {gate_res.gate_reason}"
+                
+                self.running_score = gate_res.gate_score
+                self.cloud_verified_severe_threat = True
+                if self.event_queue:
+                    await self.event_queue.put({
+                        "action": "CLOUD_VERDICT",
+                        "explanation": gate_res.gate_reason,
+                        "is_scam": True,
+                        "score": gate_res.gate_score
+                    })
+                    await asyncio.sleep(0.01)
+                return StreamChunkResult(
+                    chunk_id=self.chunk_id,
+                    is_scam=True,
+                    should_alert=True,
+                    running_score=gate_res.gate_score,
+                    alert_level=AlertLevel.RED,
+                    vectors=gate_res.vectors
+                )
         
         new_text = gate_res.vectors.get("transcription", "").strip()
         if new_text:
