@@ -153,39 +153,23 @@ async def scan_cloud(req: CloudScanRequest):
         return {"alert_level": "green", "explanation": "Unknown modality"}
 
     try:
-        from scamshield.explainers.local_llm import explainer_instance
-        import asyncio
-        loop = asyncio.get_event_loop()
-        
-        print("\n[Edge AI] Escalating to Local LLM Explainer instead of Cloud...")
-        explanation_text = await loop.run_in_executor(
-            None, 
-            explainer_instance.explain, 
-            req.vectors, 
-            req.gate_score
-        )
-        
-        # Determine alert level based on score (simulating cloud response)
-        alert_level = "red" if req.gate_score >= 0.8 else "orange" if req.gate_score >= 0.6 else "yellow"
-        
-        return {
-            "incident_id": "local-edge-incident",
-            "alert_level": alert_level,
-            "confidence_score": req.gate_score,
-            "scam_type": "suspicious_activity",
-            "explanation": explanation_text,
-            "recommendation": "Be extremely cautious. This was flagged locally.",
-            "gate_score": req.gate_score,
-            "cloud_score": req.gate_score,
-            "processed_locally": True,
-            "threat_intel_found": False,
-            "modality": req.modality
-        }
+        print(f"\n[Cloud AI] Escalating file upload to Cloud Partners (Render/Lyzr/Gemini) for modality: {req.modality}...")
+        res = await shield.cloud.detect(ep, req.vectors, req.gate_score)
+        return res.model_dump() if hasattr(res, 'model_dump') else res.dict()
     except Exception as e:
         traceback.print_exc()
         return {
+            "incident_id": "error",
             "alert_level": "yellow",
-            "explanation": f"Cloud verification failed. ({str(e) or repr(e)})"
+            "confidence_score": req.gate_score,
+            "scam_type": "unknown",
+            "explanation": f"Cloud API error: {str(e)}",
+            "recommendation": "Be cautious.",
+            "gate_score": req.gate_score,
+            "cloud_score": 0.0,
+            "processed_locally": False,
+            "threat_intel_found": False,
+            "modality": req.modality
         }
 
 @app.websocket("/scan_call_stream")
