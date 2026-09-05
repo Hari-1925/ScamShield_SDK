@@ -37,6 +37,7 @@ function App() {
   const [callAlert, setCallAlert] = useState(null);
   const [terminateCountdown, setTerminateCountdown] = useState(null);
   const [isScanningMedia, setIsScanningMedia] = useState(false);
+  const [editingName, setEditingName] = useState(false);
 
   const myVideo = useRef();
   const userVideo = useRef();
@@ -484,7 +485,32 @@ function App() {
               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-green-500 to-green-600 flex items-center justify-center text-white font-bold shadow-[0_0_15px_rgba(99,102,241,0.4)]">
                 {name.charAt(0).toUpperCase()}
               </div>
-              <div className="font-semibold text-gray-100 tracking-wide">{name}</div>
+              {editingName ? (
+                <input
+                  autoFocus
+                  defaultValue={name}
+                  className="bg-black/40 border border-green-500/50 rounded-lg px-2 py-1 text-sm text-gray-100 outline-none w-36"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const v = e.target.value.trim();
+                      if (v) setName(v);
+                      setEditingName(false);
+                    } else if (e.key === 'Escape') {
+                      setEditingName(false);
+                    }
+                  }}
+                  onBlur={(e) => {
+                    const v = e.target.value.trim();
+                    if (v) setName(v);
+                    setEditingName(false);
+                  }}
+                />
+              ) : (
+                <div className="font-semibold text-gray-100 tracking-wide cursor-pointer hover:text-green-400 transition-colors flex items-center gap-1.5" onClick={() => setEditingName(true)} title="Click to change username">
+                  {name}
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                </div>
+              )}
             </div>
             <div className="flex gap-4 text-gray-400">
               <Activity className="w-5 h-5 hover:text-green-400 cursor-pointer transition-colors" />
