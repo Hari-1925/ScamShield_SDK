@@ -143,35 +143,20 @@ async def process_detection(modality: str, req: BaseModel, request: Request, bac
             threat_intel=tavily_res
         ))
         
-        # Trigger Gemini Orchestrator in parallel to act as a second opinion
-        gemini_task = asyncio.create_task(app.state.gemini.orchestrate_multimodal_agents(
-            modality=modality,
-            req_dict=req_dict,
-            threat_intel=tavily_res
-        ))
+        # Await Lyzr Chief Fraud Officer task
+        cfo_res = await lyzr_task
         
-        cfo_res, gemini_res = await asyncio.gather(lyzr_task, gemini_task)
-        
-        # Extract individual scores
+        # Extract Lyzr scores
         lyzr_score = cfo_res.get("confidence_score", cloud_score)
-        gemini_score = gemini_res.get("confidence_score", cloud_score)
-        
         lyzr_exp = cfo_res.get("explanation", "")
-        gemini_exp = gemini_res.get("explanation", "")
-
-        # Smart Fusion: Ignore fallback scores if the other provider succeeded
-        is_lyzr_fallback = "vector anomalies" in lyzr_exp or not lyzr_exp
-        is_gemini_fallback = "fallback system" in gemini_exp or not gemini_exp
-
-        if not is_lyzr_fallback and is_gemini_fallback:
-            cloud_score = lyzr_score
-        elif not is_gemini_fallback and is_lyzr_fallback:
-            cloud_score = gemini_score
-        else:
-            cloud_score = (lyzr_score + gemini_score) / 2.0
         
-        scam_type = cfo_res.get("scam_type", scam_type) or gemini_res.get("scam_type")
-        explanation = f"Lyzr: {lyzr_exp} | Gemini: {gemini_exp}" if gemini_exp else lyzr_exp
+        # Determine score
+        is_lyzr_fallback = "vector anomalies" in lyzr_exp or not lyzr_exp
+        if not is_lyzr_fallback:
+            cloud_score = lyzr_score
+        
+        scam_type = cfo_res.get("scam_type", scam_type)
+        explanation = lyzr_exp
         recommendation = cfo_res.get("recommendation", "")
 
     if 'tavily_res' not in locals():
