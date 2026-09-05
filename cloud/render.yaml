@@ -23,6 +23,28 @@ services:
       - key: N8N_WEBHOOK_BASE_URL
         sync: false
 
+  # Signaling Server for WebRTC (Node.js)
+  - type: web
+    name: scamshield-signaling
+    runtime: node
+    region: singapore
+    buildCommand: "cd app/backend && npm install"
+    startCommand: "cd app/backend && node server.js"
+    envVars:
+      - key: PORT
+        value: 3000
+
+  # React Frontend (Static Site)
+  - type: web
+    name: scamshield-frontend
+    env: static
+    region: singapore
+    buildCommand: "cd app/frontend && npm install && npm run build"
+    staticPublishPath: "./app/frontend/dist"
+    envVars:
+      - key: VITE_SOCKET_URL
+        value: "https://scamshield-signaling.onrender.com"
+
 databases:
   - name: scamshield-db
     region: singapore

@@ -7,8 +7,8 @@ import {
   Search, MoreVertical, Paperclip, Smile, ShieldCheck, ShieldAlert, Loader, Activity
 } from 'lucide-react';
 
-const SOCKET_SERVER_URL = 'http://localhost:3000';
-const LOCAL_AGENT_URL = 'http://localhost:8001';
+const SOCKET_SERVER_URL = import.meta.env.VITE_SOCKET_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://scamshield-signaling.onrender.com');
+const LOCAL_AGENT_URL = import.meta.env.VITE_LOCAL_AGENT_URL || 'http://localhost:8001';
 
 const socket = io(SOCKET_SERVER_URL);
 
