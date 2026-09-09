@@ -284,13 +284,13 @@ The project includes a `cloud/render.yaml` blueprint that deploys:
 
 ## 📜 License
 
-This project was built for **Smart India Hackathon (SIH) 2026 — Decode**.
+This project was built for as a initial prototype for IQOO Hackathon-Chennai City Battle.
 
 ---
 
 ## 👥 Team
 
-Built by a team of 6 engineers covering AI/ML, Cloud Architecture, Frontend, Computer Vision, Data Engineering, and DevOps.
+Built by a team of 3 engineers covering AI/ML, Cloud Architecture, Frontend, Computer Vision, Data Engineering, and DevOps.
 
 ---
 
