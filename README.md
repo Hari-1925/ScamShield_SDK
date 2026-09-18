@@ -280,18 +280,4 @@ The project includes a `cloud/render.yaml` blueprint that deploys:
 - **TRAI-compliant** SMS header parsing for Indian telecom standards.
 - **Works fully offline** after initial model download.
 
----
-
-## 📜 License
-
-This project was built for as a initial prototype for IQOO Hackathon-Chennai City Battle.
-
----
-
-## 👥 Team
-
-Built by a team of 3 engineers covering AI/ML, Cloud Architecture, Frontend, Computer Vision, Data Engineering, and DevOps.
-
----
-
 > **ScamShield: Protecting every call, message, and video — before the scam succeeds.**
